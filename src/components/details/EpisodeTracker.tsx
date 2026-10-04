@@ -33,7 +33,7 @@ interface EpisodeTrackerProps {
   onProgressUpdate?: (season: number, episode: number) => void;
 }
 
-// SeriesGraph color binning
+// SeriesGraph authentic high-contrast color binning
 export function getSeriesGraphColor(rating?: number | null): {
   bg: string;
   hoverBg: string;
@@ -43,73 +43,80 @@ export function getSeriesGraphColor(rating?: number | null): {
 } {
   if (!rating || rating <= 0) {
     return {
-      bg: 'bg-[#1e2230]',
-      hoverBg: 'hover:bg-[#282d3f]',
-      text: 'text-slate-500',
-      hex: '#1e2230',
+      bg: 'bg-[#181a24] border border-white/5',
+      hoverBg: 'hover:bg-[#222634]',
+      text: 'text-slate-500 font-semibold',
+      hex: '#181a24',
       label: 'Unrated',
     };
   }
-  if (rating >= 9.0) {
+  // Absolute Cinema: >= 9.7 (SeriesGraph electric blue #1da1f2)
+  if (rating >= 9.7) {
     return {
-      bg: 'bg-[#10b981]',
-      hoverBg: 'hover:bg-[#059669]',
+      bg: 'bg-[#1da1f2]',
+      hoverBg: 'hover:bg-[#0c85d0]',
       text: 'text-white font-black',
-      hex: '#10b981',
-      label: 'Masterpiece',
+      hex: '#1da1f2',
+      label: 'Absolute Cinema',
     };
   }
-  if (rating >= 8.5) {
+  // Awesome: 9.0 - 9.6 (SeriesGraph deep dark forest green #186a3b - "dark green is really good")
+  if (rating >= 9.0) {
     return {
-      bg: 'bg-[#22c55e]',
-      hoverBg: 'hover:bg-[#16a34a]',
-      text: 'text-white font-bold',
-      hex: '#22c55e',
+      bg: 'bg-[#186a3b]',
+      hoverBg: 'hover:bg-[#145a32]',
+      text: 'text-white font-black',
+      hex: '#186a3b',
+      label: 'Awesome',
+    };
+  }
+  // Great: 8.0 - 8.9 (SeriesGraph light/medium emerald green #28b463 - "light green decend")
+  if (rating >= 8.0) {
+    return {
+      bg: 'bg-[#28b463]',
+      hoverBg: 'hover:bg-[#239b56]',
+      text: 'text-white font-black',
+      hex: '#28b463',
       label: 'Great',
     };
   }
-  if (rating >= 8.0) {
+  // Good: 7.0 - 7.9 (SeriesGraph warm golden yellow #f4d03f with crisp black text for maximum contrast)
+  if (rating >= 7.0) {
     return {
-      bg: 'bg-[#84cc16]',
-      hoverBg: 'hover:bg-[#65a30d]',
-      text: 'text-slate-950 font-bold',
-      hex: '#84cc16',
+      bg: 'bg-[#f4d03f]',
+      hoverBg: 'hover:bg-[#d4ac0d]',
+      text: 'text-[#111827] font-black',
+      hex: '#f4d03f',
       label: 'Good',
     };
   }
-  if (rating >= 7.5) {
+  // Average: 6.0 - 6.9 (SeriesGraph dark orange/amber #f39c12)
+  if (rating >= 6.0) {
     return {
-      bg: 'bg-[#eab308]',
-      hoverBg: 'hover:bg-[#ca8a04]',
-      text: 'text-slate-950 font-bold',
-      hex: '#eab308',
-      label: 'Above Avg',
-    };
-  }
-  if (rating >= 7.0) {
-    return {
-      bg: 'bg-[#f97316]',
-      hoverBg: 'hover:bg-[#ea580c]',
-      text: 'text-white font-bold',
-      hex: '#f97316',
+      bg: 'bg-[#f39c12]',
+      hoverBg: 'hover:bg-[#d68910]',
+      text: 'text-[#111827] font-black',
+      hex: '#f39c12',
       label: 'Average',
     };
   }
-  if (rating >= 6.0) {
+  // Bad: 5.0 - 5.9 (SeriesGraph crimson red #e74c3c)
+  if (rating >= 5.0) {
     return {
-      bg: 'bg-[#ea580c]',
-      hoverBg: 'hover:bg-[#c2410c]',
-      text: 'text-white font-bold',
-      hex: '#ea580c',
-      label: 'Mediocre',
+      bg: 'bg-[#e74c3c]',
+      hoverBg: 'hover:bg-[#c0392b]',
+      text: 'text-white font-black',
+      hex: '#e74c3c',
+      label: 'Bad',
     };
   }
+  // Garbage: < 5.0 (SeriesGraph deep plum purple #633974)
   return {
-    bg: 'bg-[#ef4444]',
-    hoverBg: 'hover:bg-[#dc2626]',
-    text: 'text-white font-bold',
-    hex: '#ef4444',
-    label: 'Poor',
+    bg: 'bg-[#633974]',
+    hoverBg: 'hover:bg-[#512e5f]',
+    text: 'text-white font-black',
+    hex: '#633974',
+    label: 'Garbage',
   };
 }
 
@@ -429,7 +436,7 @@ export function EpisodeTracker({
                           {seasonAvg && avgColor ? (
                             <span
                               className={cn(
-                                'px-2 py-0.5 rounded-md font-mono text-[11px] text-center font-bold shadow-sm',
+                                'px-2 py-0.5 rounded-md font-mono text-[11px] text-center font-black shadow-sm border border-black/30',
                                 avgColor.bg,
                                 avgColor.text
                               )}
@@ -464,14 +471,14 @@ export function EpisodeTracker({
                                 key={ep.id}
                                 onClick={() => setActiveEpisode(ep)}
                                 className={cn(
-                                  'relative w-11 h-9 rounded-lg shrink-0 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shadow-sm group hover:scale-110 hover:z-20 border border-black/20',
+                                  'relative w-11 h-9 rounded-lg shrink-0 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shadow-sm group hover:scale-110 hover:z-20 border border-black/30',
                                   color.bg,
                                   color.hoverBg,
-                                  isWatched && 'ring-2 ring-white/80 ring-offset-1 ring-offset-[#08090d]'
+                                  isWatched && 'ring-2 ring-white/90 ring-offset-1 ring-offset-[#08090d]'
                                 )}
-                                title={`S${sNum}E${epNum}: ${ep.name} (★ ${rating ? rating.toFixed(1) : 'Unrated'})`}
+                                title={`S${sNum}E${epNum}: ${ep.name} (★ ${rating ? rating.toFixed(1) : 'Unrated'} — ${color.label})`}
                               >
-                                <span className={cn('text-xs font-mono tracking-tight', color.text)}>
+                                <span className={cn('text-xs font-mono tracking-tight font-black', color.text)}>
                                   {rating > 0 ? rating.toFixed(1) : '—'}
                                 </span>
 
@@ -500,34 +507,34 @@ export function EpisodeTracker({
               <span>SeriesGraph Legend:</span>
             </span>
 
-            <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
-              <span className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-3 h-3 rounded bg-[#10b981]" />
-                <span>9.0+ Masterpiece</span>
+            <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11px]">
+              <span className="flex items-center gap-1.5 text-slate-200">
+                <span className="w-3 h-3 rounded bg-[#1da1f2] border border-black/30 shadow-sm" />
+                <span>≥9.7 Absolute Cinema</span>
               </span>
-              <span className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-3 h-3 rounded bg-[#22c55e]" />
-                <span>8.5-8.9 Great</span>
+              <span className="flex items-center gap-1.5 text-slate-200">
+                <span className="w-3 h-3 rounded bg-[#186a3b] border border-black/30 shadow-sm" />
+                <span>9.0-9.6 Awesome</span>
               </span>
-              <span className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-3 h-3 rounded bg-[#84cc16]" />
-                <span>8.0-8.4 Good</span>
+              <span className="flex items-center gap-1.5 text-slate-200">
+                <span className="w-3 h-3 rounded bg-[#28b463] border border-black/30 shadow-sm" />
+                <span>8.0-8.9 Great</span>
               </span>
-              <span className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-3 h-3 rounded bg-[#eab308]" />
-                <span>7.5-7.9 Above Avg</span>
+              <span className="flex items-center gap-1.5 text-slate-200">
+                <span className="w-3 h-3 rounded bg-[#f4d03f] border border-black/30 shadow-sm" />
+                <span>7.0-7.9 Good</span>
               </span>
-              <span className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-3 h-3 rounded bg-[#f97316]" />
-                <span>7.0-7.4 Average</span>
+              <span className="flex items-center gap-1.5 text-slate-200">
+                <span className="w-3 h-3 rounded bg-[#f39c12] border border-black/30 shadow-sm" />
+                <span>6.0-6.9 Average</span>
               </span>
-              <span className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-3 h-3 rounded bg-[#ea580c]" />
-                <span>6.0-6.9 Mediocre</span>
+              <span className="flex items-center gap-1.5 text-slate-200">
+                <span className="w-3 h-3 rounded bg-[#e74c3c] border border-black/30 shadow-sm" />
+                <span>5.0-5.9 Bad</span>
               </span>
-              <span className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-3 h-3 rounded bg-[#ef4444]" />
-                <span>&lt;6.0 Poor</span>
+              <span className="flex items-center gap-1.5 text-slate-200">
+                <span className="w-3 h-3 rounded bg-[#633974] border border-black/30 shadow-sm" />
+                <span>&lt;5.0 Garbage</span>
               </span>
             </div>
           </div>
@@ -552,8 +559,8 @@ export function EpisodeTracker({
                 <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${chronologicalEpisodes.length * 24} 200`}>
                   <defs>
                     <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                      <stop offset="0%" stopColor="#28b463" stopOpacity="0.4" />
+                      <stop offset="100%" stopColor="#28b463" stopOpacity="0.0" />
                     </linearGradient>
                   </defs>
 
@@ -578,7 +585,7 @@ export function EpisodeTracker({
                   {/* Polyline */}
                   <polyline
                     fill="none"
-                    stroke="#10b981"
+                    stroke="#28b463"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -693,7 +700,7 @@ export function EpisodeTracker({
 
                   <span
                     className={cn(
-                      'px-2 py-0.5 rounded-md font-mono text-xs font-bold shadow-sm',
+                      'px-2.5 py-1 rounded-md font-mono text-xs font-black shadow-sm border border-black/30',
                       color.bg,
                       color.text
                     )}
@@ -749,7 +756,7 @@ export function EpisodeTracker({
                 {activeEpisode.vote_average ? (
                   <span
                     className={cn(
-                      'px-2 py-0.5 rounded font-mono text-[11px] font-bold shadow-sm',
+                      'px-2.5 py-1 rounded font-mono text-[11px] font-black shadow-sm border border-black/30',
                       getSeriesGraphColor(activeEpisode.vote_average).bg,
                       getSeriesGraphColor(activeEpisode.vote_average).text
                     )}

@@ -35,6 +35,8 @@ export interface TMDBDetailsResponse {
   number_of_seasons?: number;
   number_of_episodes?: number;
   tagline?: string;
+  vote_average?: number;
+  vote_count?: number;
   genres: Array<{ id: number; name: string }>;
   credits?: {
     cast: Array<{

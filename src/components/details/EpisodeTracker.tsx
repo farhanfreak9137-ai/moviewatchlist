@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { tmdbService, getImageUrl } from '@/lib/metadata/tmdb';
@@ -137,6 +138,11 @@ export function EpisodeTracker({
   const [loading, setLoading] = useState(true);
   const [activeEpisode, setActiveEpisode] = useState<EpisodeInfo | null>(null);
   const [selectedSeasonForList, setSelectedSeasonForList] = useState<number>(currentSeason || 1);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Live query for checked episodes from IndexedDB
   const watchedEpisodes = useLiveQuery(
@@ -275,7 +281,7 @@ export function EpisodeTracker({
   }, [allSeasonEpisodes]);
 
   return (
-    <div className="mt-10 pt-8 border-t border-white/10">
+    <div className="mt-10 pt-8 border-t border-white/10 w-full max-w-full">
       {/* Header & View Mode Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
@@ -293,36 +299,39 @@ export function EpisodeTracker({
         </div>
 
         {/* View mode toggle (Matrix, Graph, List) */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-[#11131c] border border-white/10 shrink-0">
+        <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#11131c] border border-white/10 w-full sm:w-auto sm:flex sm:items-center shrink-0">
           <button
             onClick={() => setViewMode('matrix')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer',
+              'flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer truncate',
               viewMode === 'matrix' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
             )}
           >
-            <Grid3X3 className="w-3.5 h-3.5" />
-            <span>Heatmap Grid</span>
+            <Grid3X3 className="w-3.5 h-3.5 shrink-0" />
+            <span className="sm:hidden">Grid</span>
+            <span className="hidden sm:inline">Heatmap Grid</span>
           </button>
           <button
             onClick={() => setViewMode('graph')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer',
+              'flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer truncate',
               viewMode === 'graph' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
             )}
           >
-            <LineChart className="w-3.5 h-3.5" />
-            <span>Trend Graph</span>
+            <LineChart className="w-3.5 h-3.5 shrink-0" />
+            <span className="sm:hidden">Trend</span>
+            <span className="hidden sm:inline">Trend Graph</span>
           </button>
           <button
             onClick={() => setViewMode('list')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer',
+              'flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer truncate',
               viewMode === 'list' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
             )}
           >
-            <List className="w-3.5 h-3.5" />
-            <span>Episode List</span>
+            <List className="w-3.5 h-3.5 shrink-0" />
+            <span className="sm:hidden">List</span>
+            <span className="hidden sm:inline">Episode List</span>
           </button>
         </div>
       </div>
@@ -385,22 +394,29 @@ export function EpisodeTracker({
       {/* VIEW 1: THE SERIESGRAPH HEATMAP MATRIX */}
       {viewMode === 'matrix' && (
         <div className="space-y-4">
-          <div className="p-4 sm:p-6 rounded-2xl bg-[#0e1017] border border-white/10 overflow-x-auto shadow-2xl">
+          <div className="p-3 sm:p-6 rounded-2xl bg-[#0e1017] border border-white/10 overflow-x-auto shadow-2xl">
             {loading ? (
               <div className="py-20 text-center text-slate-400 text-xs">
                 Generating SeriesGraph rating matrix...
               </div>
             ) : (
-              <div className="min-w-[700px]">
+              <div className="min-w-[620px]">
                 {/* Column Headers (Episode Numbers E1, E2, E3...) */}
-                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5 text-[11px] font-mono text-slate-400">
-                  <div className="w-24 shrink-0 font-semibold text-slate-300">Season</div>
-                  <div className="w-16 shrink-0 text-center font-semibold text-slate-300">Avg</div>
-                  <div className="flex-1 flex gap-1.5">
+                <div className="flex items-center gap-1.5 sm:gap-2 mb-2 pb-2 border-b border-white/5 text-[11px] font-mono text-slate-400">
+                  {/* Sticky Header Columns */}
+                  <div className="sticky left-0 bg-[#0e1017] z-20 flex items-center pr-2 border-r border-white/10 shadow-lg">
+                    <div className="w-12 sm:w-20 shrink-0 font-bold text-slate-300">
+                      <span className="sm:hidden font-mono">S</span>
+                      <span className="hidden sm:inline">Season</span>
+                    </div>
+                    <div className="w-11 sm:w-16 shrink-0 text-center font-bold text-slate-300">Avg</div>
+                  </div>
+
+                  <div className="flex-1 flex gap-1.5 pl-1">
                     {Array.from({ length: maxEpisodes }, (_, i) => i + 1).map((epNum) => (
                       <div
                         key={epNum}
-                        className="w-11 text-center shrink-0 text-[10px] text-slate-400 font-medium"
+                        className="w-10 sm:w-11 text-center shrink-0 text-[10px] text-slate-400 font-medium"
                       >
                         E{epNum}
                       </div>
@@ -424,40 +440,44 @@ export function EpisodeTracker({
                     return (
                       <div
                         key={season.id}
-                        className="flex items-center gap-2 py-1 hover:bg-white/[0.02] rounded-xl px-1 transition-colors"
+                        className="flex items-center gap-1.5 sm:gap-2 py-1 hover:bg-white/[0.02] rounded-xl transition-colors"
                       >
-                        {/* Season Name */}
-                        <div className="w-24 shrink-0 font-semibold text-xs text-slate-200">
-                          {season.name || `Season ${sNum}`}
-                        </div>
+                        {/* Sticky Season & Avg Columns */}
+                        <div className="sticky left-0 bg-[#0e1017] z-10 flex items-center pr-2 border-r border-white/10 shadow-lg">
+                          {/* Season Name */}
+                          <div className="w-12 sm:w-20 shrink-0 font-bold text-xs text-slate-200">
+                            <span className="sm:hidden font-mono">S{sNum}</span>
+                            <span className="hidden sm:inline">{season.name || `Season ${sNum}`}</span>
+                          </div>
 
-                        {/* Season Average Badge */}
-                        <div className="w-16 shrink-0 flex justify-center">
-                          {seasonAvg && avgColor ? (
-                            <span
-                              className={cn(
-                                'px-2 py-0.5 rounded-md font-mono text-[11px] text-center font-black shadow-sm border border-black/30',
-                                avgColor.bg,
-                                avgColor.text
-                              )}
-                              title={`Season ${sNum} Average: ${seasonAvg}`}
-                            >
-                              {seasonAvg}
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-mono text-slate-600">—</span>
-                          )}
+                          {/* Season Average Badge */}
+                          <div className="w-11 sm:w-16 shrink-0 flex justify-center">
+                            {seasonAvg && avgColor ? (
+                              <span
+                                className={cn(
+                                  'px-1.5 sm:px-2 py-0.5 rounded-md font-mono text-[10px] sm:text-[11px] text-center font-black shadow-sm border border-black/30',
+                                  avgColor.bg,
+                                  avgColor.text
+                                )}
+                                title={`Season ${sNum} Average: ${seasonAvg}`}
+                              >
+                                {seasonAvg}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-mono text-slate-600">—</span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Episode Cells */}
-                        <div className="flex-1 flex gap-1.5">
+                        <div className="flex-1 flex gap-1.5 pl-1">
                           {Array.from({ length: maxEpisodes }, (_, i) => i + 1).map((epNum) => {
                             const ep = episodes.find((e) => e.episode_number === epNum);
                             if (!ep) {
                               return (
                                 <div
                                   key={epNum}
-                                  className="w-11 h-9 rounded-lg bg-transparent shrink-0 opacity-20"
+                                  className="w-10 sm:w-11 h-9 rounded-lg bg-transparent shrink-0 opacity-20"
                                 />
                               );
                             }
@@ -471,14 +491,14 @@ export function EpisodeTracker({
                                 key={ep.id}
                                 onClick={() => setActiveEpisode(ep)}
                                 className={cn(
-                                  'relative w-11 h-9 rounded-lg shrink-0 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shadow-sm group hover:scale-110 hover:z-20 border border-black/30',
+                                  'relative w-10 sm:w-11 h-9 rounded-lg shrink-0 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shadow-sm group hover:scale-110 hover:z-20 border border-black/30',
                                   color.bg,
                                   color.hoverBg,
                                   isWatched && 'ring-2 ring-white/90 ring-offset-1 ring-offset-[#08090d]'
                                 )}
                                 title={`S${sNum}E${epNum}: ${ep.name} (★ ${rating ? rating.toFixed(1) : 'Unrated'} — ${color.label})`}
                               >
-                                <span className={cn('text-xs font-mono tracking-tight font-black', color.text)}>
+                                <span className={cn('text-[11px] sm:text-xs font-mono tracking-tight font-black', color.text)}>
                                   {rating > 0 ? rating.toFixed(1) : '—'}
                                 </span>
 
@@ -501,39 +521,39 @@ export function EpisodeTracker({
           </div>
 
           {/* SeriesGraph Rating Legend Bar */}
-          <div className="p-3.5 rounded-xl bg-[#11131c] border border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <span className="text-slate-400 font-semibold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+          <div className="p-3 sm:p-4 rounded-xl bg-[#11131c] border border-white/5 space-y-2.5 text-xs">
+            <div className="flex items-center gap-1.5 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
               <Sparkles className="w-3.5 h-3.5 text-red-500" />
-              <span>SeriesGraph Legend:</span>
-            </span>
+              <span>SeriesGraph Rating Legend:</span>
+            </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11px]">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 font-mono text-[11px]">
               <span className="flex items-center gap-1.5 text-slate-200">
-                <span className="w-3 h-3 rounded bg-[#1da1f2] border border-black/30 shadow-sm" />
-                <span>≥9.7 Absolute Cinema</span>
+                <span className="w-3 h-3 rounded bg-[#1da1f2] border border-black/30 shadow-sm shrink-0" />
+                <span>≥9.7 Cinema</span>
               </span>
               <span className="flex items-center gap-1.5 text-slate-200">
-                <span className="w-3 h-3 rounded bg-[#186a3b] border border-black/30 shadow-sm" />
+                <span className="w-3 h-3 rounded bg-[#186a3b] border border-black/30 shadow-sm shrink-0" />
                 <span>9.0-9.6 Awesome</span>
               </span>
               <span className="flex items-center gap-1.5 text-slate-200">
-                <span className="w-3 h-3 rounded bg-[#28b463] border border-black/30 shadow-sm" />
+                <span className="w-3 h-3 rounded bg-[#28b463] border border-black/30 shadow-sm shrink-0" />
                 <span>8.0-8.9 Great</span>
               </span>
               <span className="flex items-center gap-1.5 text-slate-200">
-                <span className="w-3 h-3 rounded bg-[#f4d03f] border border-black/30 shadow-sm" />
+                <span className="w-3 h-3 rounded bg-[#f4d03f] border border-black/30 shadow-sm shrink-0" />
                 <span>7.0-7.9 Good</span>
               </span>
               <span className="flex items-center gap-1.5 text-slate-200">
-                <span className="w-3 h-3 rounded bg-[#f39c12] border border-black/30 shadow-sm" />
+                <span className="w-3 h-3 rounded bg-[#f39c12] border border-black/30 shadow-sm shrink-0" />
                 <span>6.0-6.9 Average</span>
               </span>
               <span className="flex items-center gap-1.5 text-slate-200">
-                <span className="w-3 h-3 rounded bg-[#e74c3c] border border-black/30 shadow-sm" />
+                <span className="w-3 h-3 rounded bg-[#e74c3c] border border-black/30 shadow-sm shrink-0" />
                 <span>5.0-5.9 Bad</span>
               </span>
               <span className="flex items-center gap-1.5 text-slate-200">
-                <span className="w-3 h-3 rounded bg-[#633974] border border-black/30 shadow-sm" />
+                <span className="w-3 h-3 rounded bg-[#633974] border border-black/30 shadow-sm shrink-0" />
                 <span>&lt;5.0 Garbage</span>
               </span>
             </div>
@@ -715,105 +735,112 @@ export function EpisodeTracker({
       )}
 
       {/* EPISODE INSPECTOR MODAL (POPUP ON CELL CLICK) */}
-      {activeEpisode && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-lg w-full rounded-2xl bg-[#141624] border border-white/10 overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            {/* Still image header */}
-            {activeEpisode.still_path && (
-              <div className="relative aspect-video w-full bg-[#1c1f2e]">
-                <img
-                  src={getImageUrl(activeEpisode.still_path, 'w500') || ''}
-                  alt={activeEpisode.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#141624] via-transparent to-black/40" />
-                <button
-                  onClick={() => setActiveEpisode(null)}
-                  className="absolute top-3 right-3 p-1.5 rounded-full bg-black/60 hover:bg-black text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            <div className="p-6">
-              {!activeEpisode.still_path && (
-                <div className="flex items-center justify-end mb-2">
+      {activeEpisode && mounted && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="max-w-lg w-full max-h-[85vh] sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl bg-[#141624] border-t sm:border border-white/15 overflow-hidden shadow-2xl animate-in slide-in-from-bottom sm:fade-in sm:zoom-in-95 duration-200 flex flex-col">
+            {/* Scrollable content container */}
+            <div className="overflow-y-auto flex-1 overscroll-contain">
+              {/* Still image header */}
+              {activeEpisode.still_path && (
+                <div className="relative aspect-video w-full bg-[#1c1f2e] shrink-0">
+                  <img
+                    src={getImageUrl(activeEpisode.still_path, 'w500') || ''}
+                    alt={activeEpisode.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#141624] via-transparent to-black/40" />
                   <button
                     onClick={() => setActiveEpisode(null)}
-                    className="p-1 rounded-full text-slate-400 hover:text-white"
+                    className="absolute top-3 right-3 p-2 rounded-full bg-black/70 hover:bg-black text-white transition-colors"
+                    aria-label="Close"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
 
-              <div className="flex items-center gap-2 mb-2">
-                <span className="px-2 py-0.5 rounded bg-white/10 text-slate-300 font-mono text-[11px] font-bold uppercase">
-                  S{activeEpisode.season_number} E{activeEpisode.episode_number}
-                </span>
-
-                {activeEpisode.vote_average ? (
-                  <span
-                    className={cn(
-                      'px-2.5 py-1 rounded font-mono text-[11px] font-black shadow-sm border border-black/30',
-                      getSeriesGraphColor(activeEpisode.vote_average).bg,
-                      getSeriesGraphColor(activeEpisode.vote_average).text
-                    )}
-                  >
-                    ★ {activeEpisode.vote_average.toFixed(1)} / 10 ({getSeriesGraphColor(activeEpisode.vote_average).label})
-                  </span>
-                ) : null}
-              </div>
-
-              <h3 className="text-xl font-bold text-white mb-2">{activeEpisode.name}</h3>
-
-              <div className="flex items-center gap-3 text-xs text-slate-400 font-mono mb-4">
-                {activeEpisode.air_date && <span>Aired: {activeEpisode.air_date}</span>}
-                {activeEpisode.runtime && <span>• {activeEpisode.runtime} mins</span>}
-              </div>
-
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
-                {activeEpisode.overview || 'No synopsis provided for this episode.'}
-              </p>
-
-              {/* Action buttons */}
-              <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/10">
-                {libraryItemId ? (
-                  <button
-                    onClick={() => {
-                      toggleEpisode(activeEpisode.season_number, activeEpisode.episode_number);
-                    }}
-                    className={cn(
-                      'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer',
-                      watchedSet.has(`s${activeEpisode.season_number}_e${activeEpisode.episode_number}`)
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-white/10 hover:bg-white/20 text-white'
-                    )}
-                  >
-                    <Check className="w-4 h-4 stroke-[3]" />
-                    <span>
-                      {watchedSet.has(`s${activeEpisode.season_number}_e${activeEpisode.episode_number}`)
-                        ? 'Watched ✓'
-                        : 'Mark as Watched'}
-                    </span>
-                  </button>
-                ) : (
-                  <span className="text-[11px] text-slate-500">
-                    Add series to your library to track watched progress.
-                  </span>
+              <div className="p-5 sm:p-6">
+                {!activeEpisode.still_path && (
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-slate-400">Episode Details</span>
+                    <button
+                      onClick={() => setActiveEpisode(null)}
+                      className="p-1.5 rounded-full text-slate-400 hover:text-white bg-white/5"
+                      aria-label="Close"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
 
-                <button
-                  onClick={() => setActiveEpisode(null)}
-                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  Close
-                </button>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 rounded bg-white/10 text-slate-300 font-mono text-[11px] font-bold uppercase">
+                    S{activeEpisode.season_number} E{activeEpisode.episode_number}
+                  </span>
+
+                  {activeEpisode.vote_average ? (
+                    <span
+                      className={cn(
+                        'px-2.5 py-1 rounded font-mono text-[11px] font-black shadow-sm border border-black/30',
+                        getSeriesGraphColor(activeEpisode.vote_average).bg,
+                        getSeriesGraphColor(activeEpisode.vote_average).text
+                      )}
+                    >
+                      ★ {activeEpisode.vote_average.toFixed(1)} / 10 ({getSeriesGraphColor(activeEpisode.vote_average).label})
+                    </span>
+                  ) : null}
+                </div>
+
+                <h3 className="text-xl font-bold text-white mb-2">{activeEpisode.name}</h3>
+
+                <div className="flex items-center gap-3 text-xs text-slate-400 font-mono mb-4">
+                  {activeEpisode.air_date && <span>Aired: {activeEpisode.air_date}</span>}
+                  {activeEpisode.runtime && <span>• {activeEpisode.runtime} mins</span>}
+                </div>
+
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-4">
+                  {activeEpisode.overview || 'No synopsis provided for this episode.'}
+                </p>
               </div>
             </div>
+
+            {/* Sticky Action Footer */}
+            <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-white/10 bg-[#121420] shrink-0 flex items-center justify-between gap-3">
+              {libraryItemId ? (
+                <button
+                  onClick={() => {
+                    toggleEpisode(activeEpisode.season_number, activeEpisode.episode_number);
+                  }}
+                  className={cn(
+                    'px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer',
+                    watchedSet.has(`s${activeEpisode.season_number}_e${activeEpisode.episode_number}`)
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  )}
+                >
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>
+                    {watchedSet.has(`s${activeEpisode.season_number}_e${activeEpisode.episode_number}`)
+                      ? 'Watched ✓'
+                      : 'Mark as Watched'}
+                  </span>
+                </button>
+              ) : (
+                <span className="text-[11px] text-slate-500">
+                  Add series to your library to track progress.
+                </span>
+              )}
+
+              <button
+                onClick={() => setActiveEpisode(null)}
+                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

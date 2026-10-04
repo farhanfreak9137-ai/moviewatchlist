@@ -211,13 +211,13 @@ function LibraryContent() {
         </div>
 
         {/* Filter Dropdowns */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full md:w-auto">
           {/* Genre Filter */}
           {availableGenres.length > 0 && (
             <select
               value={selectedGenre}
               onChange={(e) => setSelectedGenre(e.target.value)}
-              className="bg-[#181a24] text-white text-xs px-2.5 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-red-500 cursor-pointer"
+              className="flex-1 sm:flex-initial bg-[#181a24] text-white text-xs px-2.5 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-red-500 cursor-pointer min-w-[110px]"
             >
               <option value="all">All Genres</option>
               {availableGenres.map((g) => (
@@ -231,7 +231,7 @@ function LibraryContent() {
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
-              className="bg-[#181a24] text-white text-xs px-2.5 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-red-500 cursor-pointer"
+              className="flex-1 sm:flex-initial bg-[#181a24] text-white text-xs px-2.5 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-red-500 cursor-pointer"
             >
               <option value="all">All Years</option>
               {availableYears.map((y) => (
@@ -244,7 +244,7 @@ function LibraryContent() {
           <select
             value={selectedRating}
             onChange={(e) => setSelectedRating(e.target.value)}
-            className="bg-[#181a24] text-white text-xs px-2.5 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-red-500 cursor-pointer"
+            className="flex-1 sm:flex-initial bg-[#181a24] text-white text-xs px-2.5 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-red-500 cursor-pointer"
           >
             <option value="all">All Ratings</option>
             <option value="9+">9+ Stars</option>
@@ -254,12 +254,12 @@ function LibraryContent() {
           </select>
 
           {/* Sort By */}
-          <div className="flex items-center gap-1 bg-[#181a24] px-2.5 py-1 rounded-xl border border-white/10">
-            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+          <div className="flex-1 sm:flex-initial flex items-center gap-1 bg-[#181a24] px-2.5 py-1 rounded-xl border border-white/10">
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="bg-transparent text-white text-xs py-1 focus:outline-none cursor-pointer"
+              className="bg-transparent text-white text-xs py-1 focus:outline-none cursor-pointer w-full"
             >
               <option value="recently_added" className="bg-[#181a24]">Recently Added</option>
               <option value="recently_updated" className="bg-[#181a24]">Recently Modified</option>
@@ -270,7 +270,7 @@ function LibraryContent() {
           </div>
 
           {/* View Mode Toggle */}
-          <div className="flex items-center bg-[#181a24] p-1 rounded-xl border border-white/10">
+          <div className="flex items-center bg-[#181a24] p-1 rounded-xl border border-white/10 shrink-0">
             <button
               onClick={() => setViewMode('grid')}
               className={cn(

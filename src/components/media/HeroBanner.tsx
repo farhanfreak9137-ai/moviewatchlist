@@ -89,12 +89,12 @@ export function HeroBanner({ item }: HeroBannerProps) {
       )}
 
       {/* Content */}
-      <div className="relative z-10 p-6 sm:p-10 max-w-3xl">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="px-2.5 py-0.5 rounded-md bg-red-600/90 text-white text-[11px] font-bold uppercase tracking-wider">
+      <div className="relative z-10 p-4 sm:p-10 max-w-3xl w-full">
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className="px-2.5 py-0.5 rounded-md bg-red-600/90 text-white text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">
             Trending Today
           </span>
-          <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md border border-white/10 text-slate-300 text-[11px] font-medium uppercase tracking-wider">
+          <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md border border-white/10 text-slate-300 text-[10px] sm:text-[11px] font-medium uppercase tracking-wider">
             {mediaType === 'movie' ? 'Movie' : 'Series'}
           </span>
           {isInLibrary && (
@@ -102,41 +102,41 @@ export function HeroBanner({ item }: HeroBannerProps) {
           )}
         </div>
 
-        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight mb-3 line-clamp-2">
+        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight mb-2.5 line-clamp-2">
           {title}
         </h1>
 
-        <p className="text-slate-300 text-xs sm:text-sm line-clamp-3 leading-relaxed mb-6 max-w-2xl">
+        <p className="text-slate-300 text-xs sm:text-sm line-clamp-2 sm:line-clamp-3 leading-relaxed mb-5 max-w-2xl">
           {item.overview}
         </p>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-row items-center gap-2.5 w-full sm:w-auto">
           <Link
             href={`/title/${mediaType}/${item.id}`}
-            className="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-200 text-black font-semibold text-sm transition-all shadow-xl flex items-center gap-2 cursor-pointer"
+            className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-slate-200 text-black font-semibold text-xs sm:text-sm transition-all shadow-xl flex items-center gap-2 cursor-pointer whitespace-nowrap"
           >
-            <Info className="w-4 h-4" />
+            <Info className="w-4 h-4 shrink-0" />
             <span>View Details</span>
           </Link>
 
           {isInLibrary ? (
             <Link
               href={`/title/${mediaType}/${item.id}`}
-              className="px-5 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold text-sm flex items-center gap-2 backdrop-blur-md"
+              className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold text-xs sm:text-sm flex items-center gap-2 backdrop-blur-md whitespace-nowrap"
             >
-              <Check className="w-4 h-4 stroke-[3]" />
+              <Check className="w-4 h-4 stroke-[3] shrink-0" />
               <span>In Library ({libraryItem.status})</span>
             </Link>
           ) : (
             <button
               onClick={handleQuickAdd}
               disabled={isAdding}
-              className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition-all shadow-lg shadow-red-900/30 flex items-center gap-2 cursor-pointer"
+              className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-red-900/30 flex items-center gap-2 cursor-pointer whitespace-nowrap"
             >
               {isAdding ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
               ) : (
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 shrink-0" />
               )}
               <span>Add to Library</span>
             </button>

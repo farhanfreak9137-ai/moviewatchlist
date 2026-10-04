@@ -1,0 +1,324 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useLibrary } from '@/hooks/useLibrary';
+import { tmdbService, TMDBDetailsResponse, getImageUrl } from '@/lib/metadata/tmdb';
+import { MediaType, WatchStatus, LibraryItem } from '@/lib/types';
+import { formatMinutes, formatDate } from '@/lib/utils/format';
+import { StatusBadge } from '@/components/media/StatusBadge';
+import { PersonalWatchSection } from '@/components/details/PersonalWatchSection';
+import { CastCarousel } from '@/components/details/CastCarousel';
+import { EpisodeTracker } from '@/components/details/EpisodeTracker';
+import {
+  Film,
+  Tv,
+  Calendar,
+  Clock,
+  Star,
+  Plus,
+  Check,
+  ChevronLeft,
+  Share2,
+  Heart,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react';
+import Link from 'next/link';
+import { cn } from '@/lib/utils/cn';
+
+export default function TitleDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+
+  const mediaType = (params.mediaType as MediaType) || 'movie';
+  const tmdbId = Number(params.id);
+
+  const {
+    getItemByTmdbId,
+    addToLibrary,
+    updateItem,
+    removeItem,
+    toggleFavorite,
+  } = useLibrary();
+
+  const libraryItem = getItemByTmdbId(tmdbId, mediaType);
+  const isInLibrary = !!libraryItem;
+
+  const [metadata, setMetadata] = useState<TMDBDetailsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadData() {
+      if (!tmdbId) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const details =
+          mediaType === 'movie'
+            ? await tmdbService.getMovieDetails(tmdbId)
+            : await tmdbService.getSeriesDetails(tmdbId);
+
+        if (isMounted) {
+          setMetadata(details);
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          if (libraryItem) {
+            // If offline but in library, we have saved data
+            setMetadata(null);
+          } else {
+            setError(err.message || 'Failed to load title metadata');
+          }
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    loadData();
+    return () => {
+      isMounted = false;
+    };
+  }, [tmdbId, mediaType, libraryItem]);
+
+  const handleAddWithStatus = async (status: WatchStatus) => {
+    if (!metadata || isAdding) return;
+    try {
+      setIsAdding(true);
+      await addToLibrary(metadata, mediaType, status);
+    } catch (err) {
+      console.error('Failed to add title to library:', err);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!libraryItem) return;
+    await removeItem(libraryItem.id);
+  };
+
+  // Derive title, poster, overview, etc. (favoring local library data if offline)
+  const title = libraryItem?.title || metadata?.title || metadata?.name || 'Untitled';
+  const originalTitle = libraryItem?.original_title || metadata?.original_title || metadata?.original_name;
+  const overview = libraryItem?.overview || metadata?.overview || 'No synopsis available.';
+  const posterPath = libraryItem?.poster_path || metadata?.poster_path;
+  const backdropPath = libraryItem?.backdrop_path || metadata?.backdrop_path;
+  const releaseDate = libraryItem?.release_date || metadata?.release_date || metadata?.first_air_date;
+  const releaseYear = releaseDate ? releaseDate.substring(0, 4) : '';
+  const runtime = libraryItem?.runtime || metadata?.runtime;
+  const genres = libraryItem?.genres || (metadata?.genres || []).map((g) => g.name);
+  const cast = libraryItem?.cast || (metadata?.credits?.cast || []).slice(0, 10).map((c) => ({
+    id: c.id,
+    name: c.name,
+    character: c.character,
+    profile_path: c.profile_path,
+  }));
+  const director = libraryItem?.director || metadata?.credits?.crew?.find((c) => c.job === 'Director')?.name;
+  const creator = libraryItem?.creator || metadata?.created_by?.[0]?.name;
+
+  const backdropUrl = getImageUrl(backdropPath, 'original') || getImageUrl(posterPath, 'original');
+  const posterUrl = getImageUrl(posterPath, 'w500');
+
+  return (
+    <div className="relative -mx-4 -mt-6 sm:-mx-6 lg:-mx-8">
+      {/* Cinematic Backdrop Hero */}
+      <div className="relative w-full h-[320px] sm:h-[460px] md:h-[520px] bg-[#0c0d14] overflow-hidden">
+        {backdropUrl && (
+          <img
+            src={backdropUrl}
+            alt={title}
+            className="w-full h-full object-cover object-top opacity-35 sm:opacity-40"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#08090d] via-[#08090d]/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#08090d] via-transparent to-[#08090d]/80" />
+
+        {/* Back navigation button */}
+        <div className="absolute top-6 left-6 z-20">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 backdrop-blur-md text-slate-200 hover:text-white border border-white/10 text-xs font-medium transition-colors cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>Back</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Container overlaying backdrop */}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-40 sm:-mt-56">
+        <div className="flex flex-col md:flex-row gap-8 items-start">
+          {/* Poster Column */}
+          <div className="w-44 sm:w-60 md:w-64 shrink-0 mx-auto md:mx-0">
+            <div className="relative aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl bg-[#141622] border-2 border-white/10">
+              {posterUrl ? (
+                <img src={posterUrl} alt={title} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-500">
+                  {mediaType === 'movie' ? <Film className="w-12 h-12" /> : <Tv className="w-12 h-12" />}
+                </div>
+              )}
+
+              {/* Status Ribbon if in library */}
+              {isInLibrary && (
+                <div className="absolute top-3 right-3">
+                  <StatusBadge status={libraryItem.status} size="sm" />
+                </div>
+              )}
+            </div>
+
+            {/* Quick Action below poster */}
+            <div className="mt-4 space-y-2">
+              {!isInLibrary ? (
+                <div className="p-3 rounded-xl bg-[#12141f] border border-white/10 space-y-2">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block text-center">
+                    Add to Personal Library
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleAddWithStatus('planned')}
+                      disabled={isAdding}
+                      className="py-2 px-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      {isAdding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                      <span>Plan to Watch</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddWithStatus('watching')}
+                      disabled={isAdding}
+                      className="py-2 px-3 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <span>Watching</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                  <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-semibold text-xs">
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>In Your Library</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Status: <span className="text-white capitalize">{libraryItem.status}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Details Column */}
+          <div className="flex-1 min-w-0 pt-2 sm:pt-6">
+            {/* Badges row */}
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <span className="px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-md border border-white/10 text-white font-mono text-xs font-semibold uppercase tracking-wider">
+                {mediaType === 'movie' ? 'Movie' : 'TV Series'}
+              </span>
+              {releaseYear && (
+                <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-slate-300 font-mono text-xs">
+                  {releaseYear}
+                </span>
+              )}
+              {runtime && (
+                <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-slate-300 font-mono text-xs flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-slate-400" />
+                  {formatMinutes(runtime)}
+                </span>
+              )}
+              {metadata?.number_of_seasons && (
+                <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-slate-300 font-mono text-xs">
+                  {metadata.number_of_seasons} Seasons ({metadata.number_of_episodes || 0} eps)
+                </span>
+              )}
+            </div>
+
+            {/* Title */}
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight mb-2">
+              {title}
+            </h1>
+
+            {/* Original title or tagline if different */}
+            {originalTitle && originalTitle !== title && (
+              <p className="text-sm text-slate-400 font-sans mb-3 italic">
+                Original title: {originalTitle}
+              </p>
+            )}
+
+            {/* Genres */}
+            {genres.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mb-6">
+                {genres.map((g) => (
+                  <span
+                    key={g}
+                    className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#141724] border border-white/10 text-slate-300"
+                  >
+                    {g}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Overview / Synopsis */}
+            <div className="space-y-2 mb-6">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Synopsis
+              </h3>
+              <p className="text-sm sm:text-base text-slate-200 leading-relaxed max-w-3xl">
+                {overview}
+              </p>
+            </div>
+
+            {/* Director / Creator */}
+            {(director || creator) && (
+              <div className="flex items-center gap-2 text-xs text-slate-400 mb-6">
+                <span className="font-semibold text-slate-300">
+                  {director ? 'Directed by:' : 'Created by:'}
+                </span>
+                <span className="text-white font-medium">{director || creator}</span>
+              </div>
+            )}
+
+            {/* Cast Carousel */}
+            <CastCarousel cast={cast} />
+
+            {/* TV Series Seasons & Episodes Tracker */}
+            {mediaType === 'tv' && (
+              <EpisodeTracker
+                tvId={tmdbId}
+                libraryItemId={libraryItem?.id}
+                seasons={metadata?.seasons || libraryItem?.seasons || []}
+                currentSeason={libraryItem?.current_season || 1}
+                currentEpisode={libraryItem?.current_episode || 0}
+                onProgressUpdate={(s, ep) => {
+                  if (libraryItem) {
+                    updateItem(libraryItem.id, {
+                      current_season: s,
+                      current_episode: ep,
+                    });
+                  }
+                }}
+              />
+            )}
+
+            {/* "MY WATCH" SECTION - Strictly separated personal tracking archive */}
+            {isInLibrary && (
+              <PersonalWatchSection
+                item={libraryItem}
+                onUpdate={async (updates) => {
+                  await updateItem(libraryItem.id, updates);
+                }}
+                onRemove={handleRemove}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

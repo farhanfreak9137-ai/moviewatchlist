@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141622" />
+      <stop offset="100%" stop-color="#08090d" />
+    </linearGradient>
+    <linearGradient id="crimson" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff334b" />
+      <stop offset="100%" stop-color="#e50914" />
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect width="512" height="512" rx="128" fill="url(#bg)" stroke="#232738" stroke-width="8" />
+
+  <!-- Outer Film Reel Ring -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="url(#crimson)" stroke-width="24" stroke-dasharray="24 16" />
+
+  <!-- Shield Vault Center -->
+  <path d="M256 130 L360 175 V270 C360 340 310 395 256 415 C202 395 152 340 152 270 V175 Z" fill="#131520" stroke="url(#crimson)" stroke-width="12" />
+
+  <!-- Play / Cinema Triangle with Gold Glow -->
+  <polygon points="235,215 305,256 235,297" fill="url(#gold)" />
+</svg>

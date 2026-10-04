@@ -1,0 +1,200 @@
+'use client';
+
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db, saveLibraryItem, deleteLibraryItem, getOrCreateDeviceId } from '@/lib/db';
+import { syncEngine } from '@/lib/sync/syncEngine';
+import { LibraryItem, MediaType, WatchStatus } from '@/lib/types';
+import { TMDBDetailsResponse } from '@/lib/metadata/tmdb';
+
+export function useLibrary() {
+  const items = useLiveQuery(
+    async () => {
+      // Return only non-deleted items, sorted by updated_at descending
+      const list = await db.library_items
+        .filter((item) => !item.is_deleted)
+        .toArray();
+      return list.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    },
+    [],
+    [] // Default initial empty array: STRICTLY NO MOCK DATA
+  );
+
+  const isLoading = items === undefined;
+  const libraryItems = items || [];
+
+  // Compute live real stats strictly from local database
+  const stats = {
+    totalItems: libraryItems.length,
+    totalMovies: libraryItems.filter((i) => i.media_type === 'movie').length,
+    totalSeries: libraryItems.filter((i) => i.media_type === 'tv').length,
+    watchingCount: libraryItems.filter((i) => i.status === 'watching').length,
+    completedCount: libraryItems.filter((i) => i.status === 'completed').length,
+    plannedCount: libraryItems.filter((i) => i.status === 'planned').length,
+    droppedCount: libraryItems.filter((i) => i.status === 'dropped').length,
+    favoritesCount: libraryItems.filter((i) => i.is_favorite).length,
+    averageRating: libraryItems.filter((i) => i.rating > 0).length
+      ? (
+          libraryItems.filter((i) => i.rating > 0).reduce((acc, curr) => acc + curr.rating, 0) /
+          libraryItems.filter((i) => i.rating > 0).length
+        ).toFixed(1)
+      : '0.0',
+    totalRuntimeMinutes: libraryItems.reduce((acc, curr) => acc + (curr.runtime || 0), 0),
+  };
+
+  const getItemByTmdbId = (tmdbId: number, mediaType?: MediaType): LibraryItem | undefined => {
+    return libraryItems.find(
+      (item) => item.tmdb_id === tmdbId && (!mediaType || item.media_type === mediaType)
+    );
+  };
+
+  const getItemById = (id: string): LibraryItem | undefined => {
+    return libraryItems.find((item) => item.id === id);
+  };
+
+  const isItemInLibrary = (tmdbId: number, mediaType?: MediaType): boolean => {
+    return !!getItemByTmdbId(tmdbId, mediaType);
+  };
+
+  // Add new title from TMDB details
+  const addToLibrary = async (
+    details: TMDBDetailsResponse,
+    mediaType: MediaType,
+    initialStatus: WatchStatus = 'planned',
+    initialRating: number = 0,
+    isFavorite: boolean = false
+  ): Promise<LibraryItem> => {
+    // Check if item already exists
+    const existing = await db.library_items
+      .where('tmdb_id')
+      .equals(details.id)
+      .first();
+
+    const deviceId = await getOrCreateDeviceId();
+    const now = new Date().toISOString();
+
+    const releaseDate = details.release_date || details.first_air_date || '';
+    const releaseYear = releaseDate ? parseInt(releaseDate.substring(0, 4), 10) : undefined;
+
+    // Extract cast & crew
+    const topCast = (details.credits?.cast || []).slice(0, 10).map((c) => ({
+      id: c.id,
+      name: c.name,
+      character: c.character,
+      profile_path: c.profile_path,
+    }));
+
+    const director = details.credits?.crew?.find((c) => c.job === 'Director')?.name;
+    const creator = details.created_by?.[0]?.name;
+
+    const runtime = details.runtime || (details.episode_run_time?.[0] ? details.episode_run_time[0] : undefined);
+
+    const seasons = details.seasons?.map((s) => ({
+      id: s.id,
+      season_number: s.season_number,
+      name: s.name,
+      episode_count: s.episode_count,
+      air_date: s.air_date,
+      poster_path: s.poster_path,
+      overview: s.overview,
+    }));
+
+    const newItem: LibraryItem = {
+      id: existing ? existing.id : `item_${crypto.randomUUID()}`,
+      tmdb_id: details.id,
+      media_type: mediaType,
+      title: details.title || details.name || 'Untitled',
+      original_title: details.original_title || details.original_name,
+      poster_path: details.poster_path,
+      backdrop_path: details.backdrop_path,
+      release_date: releaseDate,
+      release_year: releaseYear,
+      genres: (details.genres || []).map((g) => g.name),
+      overview: details.overview,
+      runtime,
+      number_of_seasons: details.number_of_seasons,
+      number_of_episodes: details.number_of_episodes,
+      seasons,
+      director,
+      creator,
+      cast: topCast,
+      status: initialStatus,
+      rating: initialRating,
+      is_favorite: isFavorite,
+      notes: existing?.notes || '',
+      start_date: initialStatus === 'watching' ? new Date().toISOString().substring(0, 10) : undefined,
+      finish_date: initialStatus === 'completed' ? new Date().toISOString().substring(0, 10) : undefined,
+      current_season: mediaType === 'tv' ? 1 : undefined,
+      current_episode: mediaType === 'tv' ? 0 : undefined,
+      rewatch_count: 0,
+      created_at: existing ? existing.created_at : now,
+      updated_at: now,
+      is_deleted: false,
+      sync_version: (existing?.sync_version || 0) + 1,
+      device_id: deviceId,
+    };
+
+    await saveLibraryItem(newItem);
+    syncEngine.scheduleSync();
+    return newItem;
+  };
+
+  const updateItem = async (id: string, updates: Partial<LibraryItem>): Promise<void> => {
+    const existing = await db.library_items.get(id);
+    if (!existing) return;
+
+    const updated: LibraryItem = {
+      ...existing,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+
+    await saveLibraryItem(updated);
+    syncEngine.scheduleSync();
+  };
+
+  const removeItem = async (id: string): Promise<void> => {
+    await deleteLibraryItem(id);
+    syncEngine.scheduleSync();
+  };
+
+  const toggleFavorite = async (id: string): Promise<void> => {
+    const existing = await db.library_items.get(id);
+    if (!existing) return;
+    await updateItem(id, { is_favorite: !existing.is_favorite });
+  };
+
+  const setStatus = async (id: string, status: WatchStatus): Promise<void> => {
+    const updates: Partial<LibraryItem> = { status };
+    if (status === 'watching') {
+      const existing = await db.library_items.get(id);
+      if (!existing?.start_date) {
+        updates.start_date = new Date().toISOString().substring(0, 10);
+      }
+    } else if (status === 'completed') {
+      const existing = await db.library_items.get(id);
+      if (!existing?.finish_date) {
+        updates.finish_date = new Date().toISOString().substring(0, 10);
+      }
+    }
+    await updateItem(id, updates);
+  };
+
+  const setRating = async (id: string, rating: number): Promise<void> => {
+    await updateItem(id, { rating });
+  };
+
+  return {
+    libraryItems,
+    isLoading,
+    stats,
+    getItemByTmdbId,
+    getItemById,
+    isItemInLibrary,
+    addToLibrary,
+    updateItem,
+    removeItem,
+    toggleFavorite,
+    setStatus,
+    setRating,
+  };
+}

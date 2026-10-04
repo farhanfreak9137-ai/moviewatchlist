@@ -1,11 +1,27 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
-import { tmdbService } from '@/lib/metadata/tmdb';
+import { tmdbService, getImageUrl } from '@/lib/metadata/tmdb';
 import { EpisodeInfo, SeasonInfo } from '@/lib/types';
-import { Check, CheckCircle2, Circle, Tv, ChevronDown } from 'lucide-react';
+import {
+  Grid3X3,
+  LineChart,
+  List,
+  Check,
+  Star,
+  Tv,
+  Calendar,
+  Clock,
+  Sparkles,
+  TrendingUp,
+  X,
+  Award,
+  ChevronRight,
+  Info,
+  Layers,
+} from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 interface EpisodeTrackerProps {
@@ -17,6 +33,86 @@ interface EpisodeTrackerProps {
   onProgressUpdate?: (season: number, episode: number) => void;
 }
 
+// SeriesGraph color binning
+export function getSeriesGraphColor(rating?: number | null): {
+  bg: string;
+  hoverBg: string;
+  text: string;
+  hex: string;
+  label: string;
+} {
+  if (!rating || rating <= 0) {
+    return {
+      bg: 'bg-[#1e2230]',
+      hoverBg: 'hover:bg-[#282d3f]',
+      text: 'text-slate-500',
+      hex: '#1e2230',
+      label: 'Unrated',
+    };
+  }
+  if (rating >= 9.0) {
+    return {
+      bg: 'bg-[#10b981]',
+      hoverBg: 'hover:bg-[#059669]',
+      text: 'text-white font-black',
+      hex: '#10b981',
+      label: 'Masterpiece',
+    };
+  }
+  if (rating >= 8.5) {
+    return {
+      bg: 'bg-[#22c55e]',
+      hoverBg: 'hover:bg-[#16a34a]',
+      text: 'text-white font-bold',
+      hex: '#22c55e',
+      label: 'Great',
+    };
+  }
+  if (rating >= 8.0) {
+    return {
+      bg: 'bg-[#84cc16]',
+      hoverBg: 'hover:bg-[#65a30d]',
+      text: 'text-slate-950 font-bold',
+      hex: '#84cc16',
+      label: 'Good',
+    };
+  }
+  if (rating >= 7.5) {
+    return {
+      bg: 'bg-[#eab308]',
+      hoverBg: 'hover:bg-[#ca8a04]',
+      text: 'text-slate-950 font-bold',
+      hex: '#eab308',
+      label: 'Above Avg',
+    };
+  }
+  if (rating >= 7.0) {
+    return {
+      bg: 'bg-[#f97316]',
+      hoverBg: 'hover:bg-[#ea580c]',
+      text: 'text-white font-bold',
+      hex: '#f97316',
+      label: 'Average',
+    };
+  }
+  if (rating >= 6.0) {
+    return {
+      bg: 'bg-[#ea580c]',
+      hoverBg: 'hover:bg-[#c2410c]',
+      text: 'text-white font-bold',
+      hex: '#ea580c',
+      label: 'Mediocre',
+    };
+  }
+  return {
+    bg: 'bg-[#ef4444]',
+    hoverBg: 'hover:bg-[#dc2626]',
+    text: 'text-white font-bold',
+    hex: '#ef4444',
+    label: 'Poor',
+  };
+}
+
 export function EpisodeTracker({
   tvId,
   libraryItemId,
@@ -25,12 +121,17 @@ export function EpisodeTracker({
   currentEpisode = 0,
   onProgressUpdate,
 }: EpisodeTrackerProps) {
-  const filteredSeasons = seasons.filter((s) => s.season_number > 0);
-  const [selectedSeason, setSelectedSeason] = useState<number>(currentSeason || 1);
-  const [episodes, setEpisodes] = useState<EpisodeInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Only valid seasons (exclude Season 0 specials from main heatmap unless only specials exist)
+  const regularSeasons = seasons.filter((s) => s.season_number > 0);
+  const targetSeasons = regularSeasons.length > 0 ? regularSeasons : seasons;
 
-  // Live query for checked episodes if in library
+  const [viewMode, setViewMode] = useState<'matrix' | 'graph' | 'list'>('matrix');
+  const [allSeasonEpisodes, setAllSeasonEpisodes] = useState<Record<number, EpisodeInfo[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [activeEpisode, setActiveEpisode] = useState<EpisodeInfo | null>(null);
+  const [selectedSeasonForList, setSelectedSeasonForList] = useState<number>(currentSeason || 1);
+
+  // Live query for checked episodes from IndexedDB
   const watchedEpisodes = useLiveQuery(
     async () => {
       if (!libraryItemId) return [];
@@ -44,32 +145,55 @@ export function EpisodeTracker({
     []
   );
 
-  const watchedSet = new Set(
-    (watchedEpisodes || []).map((e) => `s${e.season_number}_e${e.episode_number}`)
-  );
+  const watchedSet = useMemo(() => {
+    return new Set((watchedEpisodes || []).map((e) => `s${e.season_number}_e${e.episode_number}`));
+  }, [watchedEpisodes]);
 
+  const seasonsKey = useMemo(() => {
+    return targetSeasons.map((s) => s.season_number).join(',');
+  }, [targetSeasons]);
+
+  // Load all season episodes concurrently
   useEffect(() => {
     let isMounted = true;
-    async function loadEpisodes() {
-      if (!selectedSeason) return;
+
+    async function loadAllSeasons() {
+      if (!tvId || targetSeasons.length === 0) return;
       try {
         setLoading(true);
-        const data = await tmdbService.getSeriesSeason(tvId, selectedSeason);
+        const results = await Promise.all(
+          targetSeasons.map(async (s) => {
+            try {
+              const data = await tmdbService.getSeriesSeason(tvId, s.season_number);
+              return { seasonNum: s.season_number, episodes: data.episodes || [] };
+            } catch {
+              return { seasonNum: s.season_number, episodes: [] };
+            }
+          })
+        );
+
         if (isMounted) {
-          setEpisodes(data.episodes || []);
+          const map: Record<number, EpisodeInfo[]> = {};
+          for (const item of results) {
+            map[item.seasonNum] = item.episodes;
+          }
+          setAllSeasonEpisodes(map);
         }
       } catch (err) {
-        console.warn('Failed to load season episodes:', err);
+        console.warn('Failed to load series seasons:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
     }
-    loadEpisodes();
+
+    loadAllSeasons();
+
     return () => {
       isMounted = false;
     };
-  }, [tvId, selectedSeason]);
+  }, [tvId, seasonsKey]);
 
+  // Toggle watched state
   const toggleEpisode = async (seasonNum: number, episodeNum: number) => {
     if (!libraryItemId) return;
 
@@ -94,140 +218,594 @@ export function EpisodeTracker({
     }
   };
 
-  const handleQuickNextEpisode = () => {
-    const nextEp = (currentEpisode || 0) + 1;
-    if (onProgressUpdate) {
-      onProgressUpdate(selectedSeason, nextEp);
+  // Find max episode count across all seasons to size the matrix columns
+  const maxEpisodes = useMemo(() => {
+    let max = 0;
+    for (const eps of Object.values(allSeasonEpisodes)) {
+      if (eps.length > max) max = eps.length;
     }
-    if (libraryItemId) {
-      toggleEpisode(selectedSeason, nextEp);
-    }
-  };
+    return Math.max(max, 10);
+  }, [allSeasonEpisodes]);
 
-  const seasonInfo = filteredSeasons.find((s) => s.season_number === selectedSeason);
-  const totalEpisodesInSeason = seasonInfo?.episode_count || episodes.length || 0;
-  const watchedInThisSeason = episodes.filter((ep) =>
-    watchedSet.has(`s${selectedSeason}_e${ep.episode_number}`)
-  ).length;
+  // Compute stats across series (highest rated, lowest rated, overall average)
+  const seriesStats = useMemo(() => {
+    let all: Array<{ episode: EpisodeInfo; season: number; rating: number }> = [];
+    for (const [seasonStr, eps] of Object.entries(allSeasonEpisodes)) {
+      const sNum = parseInt(seasonStr, 10);
+      eps.forEach((ep) => {
+        if (ep.vote_average && ep.vote_average > 0) {
+          all.push({ episode: ep, season: sNum, rating: ep.vote_average });
+        }
+      });
+    }
+
+    if (all.length === 0) return null;
+
+    all.sort((a, b) => b.rating - a.rating);
+    const highest = all[0];
+    const lowest = all[all.length - 1];
+    const avg = (all.reduce((acc, curr) => acc + curr.rating, 0) / all.length).toFixed(1);
+
+    return { highest, lowest, avg, totalRated: all.length };
+  }, [allSeasonEpisodes]);
+
+  // Flatten chronological episodes for the Trend Line Graph
+  const chronologicalEpisodes = useMemo(() => {
+    const list: Array<{ season: number; episode: EpisodeInfo; rating: number }> = [];
+    const sortedSeasonKeys = Object.keys(allSeasonEpisodes)
+      .map(Number)
+      .sort((a, b) => a - b);
+
+    for (const sNum of sortedSeasonKeys) {
+      const eps = allSeasonEpisodes[sNum] || [];
+      eps.forEach((ep) => {
+        if (ep.vote_average !== undefined) {
+          list.push({ season: sNum, episode: ep, rating: ep.vote_average || 0 });
+        }
+      });
+    }
+    return list;
+  }, [allSeasonEpisodes]);
 
   return (
-    <div className="mt-8 pt-6 border-t border-white/5">
+    <div className="mt-10 pt-8 border-t border-white/10">
+      {/* Header & View Mode Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <Tv className="w-5 h-5 text-red-500" />
-            <span>Seasons & Episode Progress</span>
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Track episodes watched, season completion, and air dates.
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-red-600/20 text-red-500">
+              <Grid3X3 className="w-5 h-5" />
+            </div>
+            <h3 className="text-xl font-bold tracking-tight text-white font-sans">
+              SeriesGraph Episode Ratings
+            </h3>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            Visual episode quality trajectory, season averages, and personal progress.
           </p>
         </div>
 
-        {/* Season Selector */}
-        {filteredSeasons.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">Season:</span>
-            <select
-              value={selectedSeason}
-              onChange={(e) => setSelectedSeason(Number(e.target.value))}
-              className="bg-[#181a24] text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20 focus:outline-none focus:border-red-500 cursor-pointer"
-            >
-              {filteredSeasons.map((s) => (
-                <option key={s.id} value={s.season_number}>
-                  {s.name || `Season ${s.season_number}`} ({s.episode_count} eps)
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* View mode toggle (Matrix, Graph, List) */}
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-[#11131c] border border-white/10 shrink-0">
+          <button
+            onClick={() => setViewMode('matrix')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer',
+              viewMode === 'matrix' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+            )}
+          >
+            <Grid3X3 className="w-3.5 h-3.5" />
+            <span>Heatmap Grid</span>
+          </button>
+          <button
+            onClick={() => setViewMode('graph')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer',
+              viewMode === 'graph' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+            )}
+          >
+            <LineChart className="w-3.5 h-3.5" />
+            <span>Trend Graph</span>
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer',
+              viewMode === 'list' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+            )}
+          >
+            <List className="w-3.5 h-3.5" />
+            <span>Episode List</span>
+          </button>
+        </div>
       </div>
 
-      {/* Season Progress Bar if in library */}
-      {libraryItemId && totalEpisodesInSeason > 0 && (
-        <div className="mb-6 p-4 rounded-xl bg-[#11131c] border border-white/5">
-          <div className="flex items-center justify-between text-xs mb-2">
-            <span className="text-slate-300 font-medium">
-              Season {selectedSeason} Progress: {watchedInThisSeason} / {totalEpisodesInSeason} watched
-            </span>
-            <button
-              onClick={handleQuickNextEpisode}
-              className="px-2.5 py-1 rounded bg-red-600/90 hover:bg-red-500 text-white text-[11px] font-semibold transition-colors cursor-pointer"
-            >
-              + Next Episode
-            </button>
+      {/* Series Highlights Stats Bar */}
+      {seriesStats && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 p-4 rounded-2xl bg-[#10121a] border border-white/5 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+              <Star className="w-5 h-5 fill-amber-400" />
+            </div>
+            <div>
+              <span className="text-[11px] text-slate-400 uppercase tracking-wider block">Series Average</span>
+              <span className="text-lg font-bold text-white font-mono">{seriesStats.avg} <span className="text-xs text-slate-500">/ 10</span></span>
+            </div>
           </div>
-          <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
+
+          {seriesStats.highest && (
             <div
-              className="h-full bg-gradient-to-r from-red-600 to-rose-500 transition-all duration-300"
-              style={{
-                width: `${totalEpisodesInSeason > 0 ? (watchedInThisSeason / totalEpisodesInSeason) * 100 : 0}%`,
-              }}
-            />
+              onClick={() => setActiveEpisode(seriesStats.highest.episode)}
+              className="flex items-center gap-3 cursor-pointer group hover:opacity-90"
+            >
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                <Award className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[11px] text-slate-400 uppercase tracking-wider block">Highest Rated</span>
+                <span className="text-xs font-bold text-slate-100 group-hover:text-emerald-400 truncate block">
+                  {seriesStats.highest.episode.name}
+                </span>
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                  ★ {seriesStats.highest.rating.toFixed(1)} (S{seriesStats.highest.season}E{seriesStats.highest.episode.episode_number})
+                </span>
+              </div>
+            </div>
+          )}
+
+          {seriesStats.lowest && (
+            <div
+              onClick={() => setActiveEpisode(seriesStats.lowest.episode)}
+              className="flex items-center gap-3 cursor-pointer group hover:opacity-90"
+            >
+              <div className="p-2 rounded-xl bg-orange-500/10 text-orange-400">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[11px] text-slate-400 uppercase tracking-wider block">Lowest Rated</span>
+                <span className="text-xs font-bold text-slate-100 group-hover:text-orange-400 truncate block">
+                  {seriesStats.lowest.episode.name}
+                </span>
+                <span className="text-[10px] font-mono text-orange-400 font-bold">
+                  ★ {seriesStats.lowest.rating.toFixed(1)} (S{seriesStats.lowest.season}E{seriesStats.lowest.episode.episode_number})
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VIEW 1: THE SERIESGRAPH HEATMAP MATRIX */}
+      {viewMode === 'matrix' && (
+        <div className="space-y-4">
+          <div className="p-4 sm:p-6 rounded-2xl bg-[#0e1017] border border-white/10 overflow-x-auto shadow-2xl">
+            {loading ? (
+              <div className="py-20 text-center text-slate-400 text-xs">
+                Generating SeriesGraph rating matrix...
+              </div>
+            ) : (
+              <div className="min-w-[700px]">
+                {/* Column Headers (Episode Numbers E1, E2, E3...) */}
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5 text-[11px] font-mono text-slate-400">
+                  <div className="w-24 shrink-0 font-semibold text-slate-300">Season</div>
+                  <div className="w-16 shrink-0 text-center font-semibold text-slate-300">Avg</div>
+                  <div className="flex-1 flex gap-1.5">
+                    {Array.from({ length: maxEpisodes }, (_, i) => i + 1).map((epNum) => (
+                      <div
+                        key={epNum}
+                        className="w-11 text-center shrink-0 text-[10px] text-slate-400 font-medium"
+                      >
+                        E{epNum}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Season Rows */}
+                <div className="space-y-2">
+                  {targetSeasons.map((season) => {
+                    const sNum = season.season_number;
+                    const episodes = allSeasonEpisodes[sNum] || [];
+
+                    // Calculate season average
+                    const ratedEpisodes = episodes.filter((e) => e.vote_average && e.vote_average > 0);
+                    const seasonAvg = ratedEpisodes.length > 0
+                      ? (ratedEpisodes.reduce((acc, curr) => acc + (curr.vote_average || 0), 0) / ratedEpisodes.length).toFixed(1)
+                      : null;
+                    const avgColor = seasonAvg ? getSeriesGraphColor(parseFloat(seasonAvg)) : null;
+
+                    return (
+                      <div
+                        key={season.id}
+                        className="flex items-center gap-2 py-1 hover:bg-white/[0.02] rounded-xl px-1 transition-colors"
+                      >
+                        {/* Season Name */}
+                        <div className="w-24 shrink-0 font-semibold text-xs text-slate-200">
+                          {season.name || `Season ${sNum}`}
+                        </div>
+
+                        {/* Season Average Badge */}
+                        <div className="w-16 shrink-0 flex justify-center">
+                          {seasonAvg && avgColor ? (
+                            <span
+                              className={cn(
+                                'px-2 py-0.5 rounded-md font-mono text-[11px] text-center font-bold shadow-sm',
+                                avgColor.bg,
+                                avgColor.text
+                              )}
+                              title={`Season ${sNum} Average: ${seasonAvg}`}
+                            >
+                              {seasonAvg}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-mono text-slate-600">—</span>
+                          )}
+                        </div>
+
+                        {/* Episode Cells */}
+                        <div className="flex-1 flex gap-1.5">
+                          {Array.from({ length: maxEpisodes }, (_, i) => i + 1).map((epNum) => {
+                            const ep = episodes.find((e) => e.episode_number === epNum);
+                            if (!ep) {
+                              return (
+                                <div
+                                  key={epNum}
+                                  className="w-11 h-9 rounded-lg bg-transparent shrink-0 opacity-20"
+                                />
+                              );
+                            }
+
+                            const rating = ep.vote_average ? parseFloat(ep.vote_average.toFixed(1)) : 0;
+                            const color = getSeriesGraphColor(rating);
+                            const isWatched = watchedSet.has(`s${sNum}_e${epNum}`);
+
+                            return (
+                              <button
+                                key={ep.id}
+                                onClick={() => setActiveEpisode(ep)}
+                                className={cn(
+                                  'relative w-11 h-9 rounded-lg shrink-0 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shadow-sm group hover:scale-110 hover:z-20 border border-black/20',
+                                  color.bg,
+                                  color.hoverBg,
+                                  isWatched && 'ring-2 ring-white/80 ring-offset-1 ring-offset-[#08090d]'
+                                )}
+                                title={`S${sNum}E${epNum}: ${ep.name} (★ ${rating ? rating.toFixed(1) : 'Unrated'})`}
+                              >
+                                <span className={cn('text-xs font-mono tracking-tight', color.text)}>
+                                  {rating > 0 ? rating.toFixed(1) : '—'}
+                                </span>
+
+                                {/* Watched subtle checkmark indicator */}
+                                {isWatched && (
+                                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-white text-black flex items-center justify-center shadow-md">
+                                    <Check className="w-2.5 h-2.5 stroke-[4]" />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SeriesGraph Rating Legend Bar */}
+          <div className="p-3.5 rounded-xl bg-[#11131c] border border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <span className="text-slate-400 font-semibold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-red-500" />
+              <span>SeriesGraph Legend:</span>
+            </span>
+
+            <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="w-3 h-3 rounded bg-[#10b981]" />
+                <span>9.0+ Masterpiece</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="w-3 h-3 rounded bg-[#22c55e]" />
+                <span>8.5-8.9 Great</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="w-3 h-3 rounded bg-[#84cc16]" />
+                <span>8.0-8.4 Good</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="w-3 h-3 rounded bg-[#eab308]" />
+                <span>7.5-7.9 Above Avg</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="w-3 h-3 rounded bg-[#f97316]" />
+                <span>7.0-7.4 Average</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="w-3 h-3 rounded bg-[#ea580c]" />
+                <span>6.0-6.9 Mediocre</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="w-3 h-3 rounded bg-[#ef4444]" />
+                <span>&lt;6.0 Poor</span>
+              </span>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Episodes List */}
-      {loading ? (
-        <div className="py-12 text-center text-slate-400 text-xs">
-          Loading season episodes...
-        </div>
-      ) : episodes.length > 0 ? (
-        <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-          {episodes.map((ep) => {
-            const isWatched = watchedSet.has(`s${selectedSeason}_e${ep.episode_number}`);
-            return (
-              <div
-                key={ep.id}
-                onClick={() => libraryItemId && toggleEpisode(selectedSeason, ep.episode_number)}
-                className={cn(
-                  'flex items-center justify-between p-3 rounded-xl border transition-all text-xs',
-                  libraryItemId ? 'cursor-pointer hover:bg-white/5' : '',
-                  isWatched
-                    ? 'bg-emerald-500/5 border-emerald-500/20 text-slate-200'
-                    : 'bg-[#10121a] border-white/5 text-slate-300'
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  {libraryItemId && (
-                    <div
-                      className={cn(
-                        'w-5 h-5 rounded flex items-center justify-center border transition-colors',
-                        isWatched
-                          ? 'bg-emerald-500 border-emerald-500 text-white'
-                          : 'border-white/20 text-transparent hover:border-white/40'
-                      )}
-                    >
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    </div>
-                  )}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-slate-400">
-                        {ep.episode_number}.
-                      </span>
-                      <span className="font-semibold text-slate-100">{ep.name}</span>
-                    </div>
-                    {ep.air_date && (
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        Air date: {ep.air_date} {ep.runtime ? `• ${ep.runtime} min` : ''}
-                      </p>
-                    )}
-                  </div>
-                </div>
+      {/* VIEW 2: SERIESGRAPH TREND LINE GRAPH */}
+      {viewMode === 'graph' && (
+        <div className="p-6 rounded-2xl bg-[#0e1017] border border-white/10 shadow-2xl">
+          <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-emerald-400" />
+            <span>Chronological Rating Trajectory</span>
+          </h4>
+          <p className="text-xs text-slate-400 mb-6">
+            Episode-by-episode rating progression across all seasons.
+          </p>
 
-                {ep.vote_average ? (
-                  <span className="text-[11px] font-mono text-amber-400/80">
-                    ★ {ep.vote_average.toFixed(1)}
+          {chronologicalEpisodes.length > 0 ? (
+            <div className="space-y-4">
+              {/* SVG Line Graph */}
+              <div className="w-full h-64 relative bg-[#131520] rounded-xl border border-white/5 p-4 flex items-end">
+                <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${chronologicalEpisodes.length * 24} 200`}>
+                  <defs>
+                    <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Horizontal Guideline lines for 10, 8, 6 */}
+                  <line x1="0" y1="20" x2={chronologicalEpisodes.length * 24} y2="20" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
+                  <line x1="0" y1="80" x2={chronologicalEpisodes.length * 24} y2="80" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
+                  <line x1="0" y1="140" x2={chronologicalEpisodes.length * 24} y2="140" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
+
+                  {/* Area fill */}
+                  <path
+                    d={`M 12 190 ${chronologicalEpisodes
+                      .map((item, i) => {
+                        const x = 12 + i * 24;
+                        // Map rating 5..10 to 190..10
+                        const y = Math.max(10, Math.min(190, 190 - ((item.rating - 5) / 5) * 180));
+                        return `L ${x} ${y}`;
+                      })
+                      .join(' ')} L ${12 + (chronologicalEpisodes.length - 1) * 24} 190 Z`}
+                    fill="url(#trendGradient)"
+                  />
+
+                  {/* Polyline */}
+                  <polyline
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={chronologicalEpisodes
+                      .map((item, i) => {
+                        const x = 12 + i * 24;
+                        const y = Math.max(10, Math.min(190, 190 - ((item.rating - 5) / 5) * 180));
+                        return `${x},${y}`;
+                      })
+                      .join(' ')}
+                  />
+
+                  {/* Episode Dots */}
+                  {chronologicalEpisodes.map((item, i) => {
+                    const x = 12 + i * 24;
+                    const y = Math.max(10, Math.min(190, 190 - ((item.rating - 5) / 5) * 180));
+                    const color = getSeriesGraphColor(item.rating);
+
+                    return (
+                      <circle
+                        key={item.episode.id}
+                        cx={x}
+                        cy={y}
+                        r="4"
+                        fill={color.hex}
+                        stroke="#0e1017"
+                        strokeWidth="1.5"
+                        className="cursor-pointer hover:r-6 transition-all"
+                        onClick={() => setActiveEpisode(item.episode)}
+                      />
+                    );
+                  })}
+                </svg>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                <span>Start: S1E1</span>
+                <span>Ratings range (5.0 — 10.0)</span>
+                <span>End: S{chronologicalEpisodes[chronologicalEpisodes.length - 1].season}E{chronologicalEpisodes[chronologicalEpisodes.length - 1].episode.episode_number}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">No episode rating data available for trend graph.</p>
+          )}
+        </div>
+      )}
+
+      {/* VIEW 3: TRADITIONAL LIST VIEW WITH SEASON SELECTOR */}
+      {viewMode === 'list' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400">Select Season:</span>
+            <select
+              value={selectedSeasonForList}
+              onChange={(e) => setSelectedSeasonForList(Number(e.target.value))}
+              className="bg-[#181a24] text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/10 focus:outline-none focus:border-red-500 cursor-pointer"
+            >
+              {targetSeasons.map((s) => (
+                <option key={s.id} value={s.season_number}>
+                  {s.name || `Season ${s.season_number}`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+            {(allSeasonEpisodes[selectedSeasonForList] || []).map((ep) => {
+              const isWatched = watchedSet.has(`s${selectedSeasonForList}_e${ep.episode_number}`);
+              const rating = ep.vote_average || 0;
+              const color = getSeriesGraphColor(rating);
+
+              return (
+                <div
+                  key={ep.id}
+                  onClick={() => setActiveEpisode(ep)}
+                  className={cn(
+                    'flex items-center justify-between p-3.5 rounded-xl border transition-all text-xs cursor-pointer',
+                    isWatched
+                      ? 'bg-emerald-500/5 border-emerald-500/20 text-slate-200'
+                      : 'bg-[#10121a] hover:bg-white/5 border-white/5 text-slate-300'
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    {libraryItemId && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleEpisode(selectedSeasonForList, ep.episode_number);
+                        }}
+                        className={cn(
+                          'w-5 h-5 rounded flex items-center justify-center border transition-colors cursor-pointer',
+                          isWatched
+                            ? 'bg-emerald-500 border-emerald-500 text-white'
+                            : 'border-white/20 text-transparent hover:border-white/40'
+                        )}
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </button>
+                    )}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-slate-400">{ep.episode_number}.</span>
+                        <span className="font-semibold text-white">{ep.name}</span>
+                      </div>
+                      {ep.air_date && (
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {ep.air_date} {ep.runtime ? `• ${ep.runtime} min` : ''}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <span
+                    className={cn(
+                      'px-2 py-0.5 rounded-md font-mono text-xs font-bold shadow-sm',
+                      color.bg,
+                      color.text
+                    )}
+                  >
+                    ★ {rating ? rating.toFixed(1) : '—'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* EPISODE INSPECTOR MODAL (POPUP ON CELL CLICK) */}
+      {activeEpisode && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="max-w-lg w-full rounded-2xl bg-[#141624] border border-white/10 overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            {/* Still image header */}
+            {activeEpisode.still_path && (
+              <div className="relative aspect-video w-full bg-[#1c1f2e]">
+                <img
+                  src={getImageUrl(activeEpisode.still_path, 'w500') || ''}
+                  alt={activeEpisode.name}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#141624] via-transparent to-black/40" />
+                <button
+                  onClick={() => setActiveEpisode(null)}
+                  className="absolute top-3 right-3 p-1.5 rounded-full bg-black/60 hover:bg-black text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <div className="p-6">
+              {!activeEpisode.still_path && (
+                <div className="flex items-center justify-end mb-2">
+                  <button
+                    onClick={() => setActiveEpisode(null)}
+                    className="p-1 rounded-full text-slate-400 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-2 py-0.5 rounded bg-white/10 text-slate-300 font-mono text-[11px] font-bold uppercase">
+                  S{activeEpisode.season_number} E{activeEpisode.episode_number}
+                </span>
+
+                {activeEpisode.vote_average ? (
+                  <span
+                    className={cn(
+                      'px-2 py-0.5 rounded font-mono text-[11px] font-bold shadow-sm',
+                      getSeriesGraphColor(activeEpisode.vote_average).bg,
+                      getSeriesGraphColor(activeEpisode.vote_average).text
+                    )}
+                  >
+                    ★ {activeEpisode.vote_average.toFixed(1)} / 10 ({getSeriesGraphColor(activeEpisode.vote_average).label})
                   </span>
                 ) : null}
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="p-6 rounded-xl bg-[#11131c] text-center text-xs text-slate-400">
-          Episode information not available for this season.
+
+              <h3 className="text-xl font-bold text-white mb-2">{activeEpisode.name}</h3>
+
+              <div className="flex items-center gap-3 text-xs text-slate-400 font-mono mb-4">
+                {activeEpisode.air_date && <span>Aired: {activeEpisode.air_date}</span>}
+                {activeEpisode.runtime && <span>• {activeEpisode.runtime} mins</span>}
+              </div>
+
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
+                {activeEpisode.overview || 'No synopsis provided for this episode.'}
+              </p>
+
+              {/* Action buttons */}
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/10">
+                {libraryItemId ? (
+                  <button
+                    onClick={() => {
+                      toggleEpisode(activeEpisode.season_number, activeEpisode.episode_number);
+                    }}
+                    className={cn(
+                      'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer',
+                      watchedSet.has(`s${activeEpisode.season_number}_e${activeEpisode.episode_number}`)
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-white/10 hover:bg-white/20 text-white'
+                    )}
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>
+                      {watchedSet.has(`s${activeEpisode.season_number}_e${activeEpisode.episode_number}`)
+                        ? 'Watched ✓'
+                        : 'Mark as Watched'}
+                    </span>
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-slate-500">
+                    Add series to your library to track watched progress.
+                  </span>
+                )}
+
+                <button
+                  onClick={() => setActiveEpisode(null)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

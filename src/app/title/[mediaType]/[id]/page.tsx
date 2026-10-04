@@ -23,9 +23,13 @@ import {
   Heart,
   Loader2,
   AlertCircle,
+  Play,
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
+import { TrailerModal } from '@/components/details/TrailerModal';
+import { StreamingProviders } from '@/components/details/StreamingProviders';
+import { UpNextEpisodeCard } from '@/components/details/UpNextEpisodeCard';
 
 export default function TitleDetailPage() {
   const params = useParams();
@@ -49,6 +53,7 @@ export default function TitleDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [showTrailer, setShowTrailer] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -125,6 +130,12 @@ export default function TitleDetailPage() {
 
   const backdropUrl = getImageUrl(backdropPath, 'original') || getImageUrl(posterPath, 'original');
   const posterUrl = getImageUrl(posterPath, 'w500');
+
+  // Extract official YouTube trailer
+  const trailer = metadata?.videos?.results?.find(
+    (v) => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')
+  ) || metadata?.videos?.results?.find((v) => v.site === 'YouTube');
+  const trailerKey = trailer?.key || null;
 
   return (
     <div className="relative -mx-4 -mt-6 sm:-mx-6 lg:-mx-8">
@@ -219,7 +230,7 @@ export default function TitleDetailPage() {
           </div>
 
           {/* Mobile Action Buttons (Full width right under header) */}
-          <div>
+          <div className="space-y-2">
             {!isInLibrary ? (
               <div className="p-2.5 rounded-xl bg-[#12141f] border border-white/10 space-y-1.5">
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block text-center">
@@ -253,6 +264,16 @@ export default function TitleDetailPage() {
                   {libraryItem.status}
                 </span>
               </div>
+            )}
+
+            {trailerKey && (
+              <button
+                onClick={() => setShowTrailer(true)}
+                className="w-full py-2.5 px-3 rounded-xl bg-[#141624] hover:bg-[#1a1e2f] border border-white/10 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
+              >
+                <Play className="w-3.5 h-3.5 fill-red-500 text-red-500" />
+                <span>Watch Official Trailer</span>
+              </button>
             )}
           </div>
         </div>
@@ -313,6 +334,16 @@ export default function TitleDetailPage() {
                     Status: <span className="text-white capitalize">{libraryItem.status}</span>
                   </p>
                 </div>
+              )}
+
+              {trailerKey && (
+                <button
+                  onClick={() => setShowTrailer(true)}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#141624] hover:bg-[#1a1e2f] border border-white/10 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                >
+                  <Play className="w-4 h-4 fill-red-500 text-red-500" />
+                  <span>Watch Official Trailer</span>
+                </button>
               )}
             </div>
           </div>
@@ -393,6 +424,24 @@ export default function TitleDetailPage() {
             {/* Cast Carousel */}
             <CastCarousel cast={cast} />
 
+            {/* Where to Watch / Streaming Availability */}
+            <StreamingProviders providersData={metadata?.['watch/providers']} />
+
+            {/* 1-Tap Up Next Episode & Overall Progress Bar */}
+            {mediaType === 'tv' && isInLibrary && (
+              <UpNextEpisodeCard
+                tvId={tmdbId}
+                libraryItemId={libraryItem.id}
+                seasons={metadata?.seasons || libraryItem.seasons || []}
+                onEpisodeWatched={(s, ep) => {
+                  updateItem(libraryItem.id, {
+                    current_season: s,
+                    current_episode: ep,
+                  });
+                }}
+              />
+            )}
+
             {/* TV Series Seasons & Episodes Tracker */}
             {mediaType === 'tv' && (
               <EpisodeTracker
@@ -425,6 +474,13 @@ export default function TitleDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Cinema Lightbox Trailer Modal */}
+      <TrailerModal
+        videoKey={showTrailer ? trailerKey : null}
+        title={title}
+        onClose={() => setShowTrailer(false)}
+      />
     </div>
   );
 }

@@ -231,6 +231,35 @@ export function EpisodeTracker({
     }
   };
 
+  // Batch toggle an entire season's watched state
+  const toggleSeason = async (seasonNum: number) => {
+    if (!libraryItemId) return;
+    const episodes = allSeasonEpisodes[seasonNum] || [];
+    if (episodes.length === 0) return;
+
+    const allWatched = episodes.every((ep) => watchedSet.has(`s${seasonNum}_e${ep.episode_number}`));
+    const now = new Date().toISOString();
+
+    for (const ep of episodes) {
+      const id = `${libraryItemId}_s${seasonNum}_e${ep.episode_number}`;
+      await db.episode_progress.put({
+        id,
+        library_item_id: libraryItemId,
+        tmdb_id: tvId,
+        season_number: seasonNum,
+        episode_number: ep.episode_number,
+        is_watched: !allWatched,
+        watched_at: !allWatched ? now : undefined,
+        updated_at: now,
+      });
+    }
+
+    if (!allWatched && onProgressUpdate) {
+      const lastEp = episodes[episodes.length - 1];
+      onProgressUpdate(seasonNum, lastEp.episode_number);
+    }
+  };
+
   // Find max episode count across all seasons to size the matrix columns
   const maxEpisodes = useMemo(() => {
     let max = 0;
@@ -656,19 +685,42 @@ export function EpisodeTracker({
       {/* VIEW 3: TRADITIONAL LIST VIEW WITH SEASON SELECTOR */}
       {viewMode === 'list' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400">Select Season:</span>
-            <select
-              value={selectedSeasonForList}
-              onChange={(e) => setSelectedSeasonForList(Number(e.target.value))}
-              className="bg-[#181a24] text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/10 focus:outline-none focus:border-red-500 cursor-pointer"
-            >
-              {targetSeasons.map((s) => (
-                <option key={s.id} value={s.season_number}>
-                  {s.name || `Season ${s.season_number}`}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">Select Season:</span>
+              <select
+                value={selectedSeasonForList}
+                onChange={(e) => setSelectedSeasonForList(Number(e.target.value))}
+                className="bg-[#181a24] text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/10 focus:outline-none focus:border-red-500 cursor-pointer"
+              >
+                {targetSeasons.map((s) => (
+                  <option key={s.id} value={s.season_number}>
+                    {s.name || `Season ${s.season_number}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {libraryItemId && (
+              <button
+                onClick={() => toggleSeason(selectedSeasonForList)}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border',
+                  (allSeasonEpisodes[selectedSeasonForList] || []).length > 0 &&
+                  (allSeasonEpisodes[selectedSeasonForList] || []).every((ep) => watchedSet.has(`s${selectedSeasonForList}_e${ep.episode_number}`))
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30'
+                    : 'bg-white/10 hover:bg-white/20 text-white border-white/10'
+                )}
+              >
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                <span>
+                  {(allSeasonEpisodes[selectedSeasonForList] || []).length > 0 &&
+                  (allSeasonEpisodes[selectedSeasonForList] || []).every((ep) => watchedSet.has(`s${selectedSeasonForList}_e${ep.episode_number}`))
+                    ? 'Unmark Season'
+                    : 'Mark Entire Season Watched'}
+                </span>
+              </button>
+            )}
           </div>
 
           <div className="space-y-2 max-h-96 overflow-y-auto pr-1">

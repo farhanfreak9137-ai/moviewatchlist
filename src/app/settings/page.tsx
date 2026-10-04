@@ -34,6 +34,8 @@ import {
   Compass,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { InstallBanner } from '@/components/layout/InstallBanner';
+import { CsvImporter } from '@/components/settings/CsvImporter';
 
 export default function SettingsPage() {
   const { syncState, pendingCount, lastSyncedAt, deviceId, deviceName, triggerSync } = useSync();
@@ -241,6 +243,9 @@ export default function SettingsPage() {
           Manage two-device synchronization, offline storage, metadata API, and backups.
         </p>
       </div>
+
+      {/* Android Native PWA / WebAPK Install Banner */}
+      <InstallBanner />
 
       {/* SECTION 1: Device Information */}
       <div className="p-6 rounded-2xl bg-[#11131c] border border-white/5 space-y-4 shadow-xl">
@@ -570,7 +575,14 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* SECTION 5: Backup & Restore */}
+      {/* SECTION 5: Letterboxd & IMDb CSV Importer */}
+      <CsvImporter
+        onImportComplete={(count) => {
+          showToast(`Imported ${count} titles into your library`);
+        }}
+      />
+
+      {/* SECTION 6: Backup & Restore */}
       <div className="p-6 rounded-2xl bg-[#11131c] border border-white/5 space-y-4 shadow-xl">
         <div className="flex items-center gap-2.5 pb-3 border-b border-white/5">
           <Database className="w-5 h-5 text-purple-400" />

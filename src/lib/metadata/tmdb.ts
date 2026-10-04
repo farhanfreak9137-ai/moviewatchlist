@@ -54,6 +54,39 @@ export interface TMDBDetailsResponse {
     }>;
   };
   created_by?: Array<{ id: number; name: string }>;
+  videos?: {
+    results: Array<{
+      id: string;
+      key: string;
+      name: string;
+      site: string;
+      type: string;
+      official?: boolean;
+    }>;
+  };
+  'watch/providers'?: {
+    results: Record<
+      string,
+      {
+        link?: string;
+        flatrate?: Array<{
+          provider_id: number;
+          provider_name: string;
+          logo_path: string;
+        }>;
+        rent?: Array<{
+          provider_id: number;
+          provider_name: string;
+          logo_path: string;
+        }>;
+        buy?: Array<{
+          provider_id: number;
+          provider_name: string;
+          logo_path: string;
+        }>;
+      }
+    >;
+  };
   seasons?: Array<{
     id: number;
     season_number: number;
@@ -159,14 +192,14 @@ export const tmdbService = {
   // Full Details for Movie
   async getMovieDetails(id: number): Promise<TMDBDetailsResponse> {
     const key = `details_movie_${id}`;
-    const endpoint = `movie/${id}?append_to_response=credits`;
+    const endpoint = `movie/${id}?append_to_response=credits,videos,watch/providers`;
     return fetchWithCache<TMDBDetailsResponse>(key, endpoint, 86400 * 7);
   },
 
   // Full Details for Series
   async getSeriesDetails(id: number): Promise<TMDBDetailsResponse> {
     const key = `details_tv_${id}`;
-    const endpoint = `tv/${id}?append_to_response=credits`;
+    const endpoint = `tv/${id}?append_to_response=credits,videos,watch/providers`;
     return fetchWithCache<TMDBDetailsResponse>(key, endpoint, 86400 * 7);
   },
 

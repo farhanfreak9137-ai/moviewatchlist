@@ -119,3 +119,14 @@ export interface ConflictHistory {
 }
 
 export type SyncState = 'synced' | 'syncing' | 'offline' | 'pending' | 'error';
+
+export type MediaFocus = 'balanced' | 'movies' | 'tv';
+export type QualityFilter = 'all' | 'high_acclaim' | 'hidden_gems';
+export type ReleaseWindow = 'any' | 'recent' | 'classics';
+
+export interface ContentPreferences {
+  mediaFocus: MediaFocus;
+  favoriteGenres: number[]; // Genre IDs
+  qualityFilter: QualityFilter;
+  releaseWindow: ReleaseWindow;
+}

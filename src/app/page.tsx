@@ -1,21 +1,42 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { useLibrary } from '@/hooks/useLibrary';
 import { tmdbService, TMDBMediaItem } from '@/lib/metadata/tmdb';
+import { getContentPreferences, POPULAR_GENRES, DEFAULT_PREFERENCES } from '@/lib/preferences/contentPreferences';
+import { ContentPreferences, MediaType } from '@/lib/types';
 import { HeroBanner } from '@/components/media/HeroBanner';
 import { MediaRow } from '@/components/media/MediaRow';
 import { MediaCard } from '@/components/media/MediaCard';
 import { EmptyState } from '@/components/library/EmptyState';
-import { Compass, PlayCircle, History, Sparkles, AlertCircle } from 'lucide-react';
+import {
+  Compass,
+  PlayCircle,
+  History,
+  Sparkles,
+  AlertCircle,
+  SlidersHorizontal,
+  Film,
+  Tv,
+} from 'lucide-react';
+
+interface TailoredGenreRow {
+  genreId: number;
+  genreName: string;
+  mediaType: MediaType;
+  items: TMDBMediaItem[];
+}
 
 export default function HomePage() {
   const { libraryItems, isLoading: isLibraryLoading } = useLibrary();
 
+  const [preferences, setPreferences] = useState<ContentPreferences>(DEFAULT_PREFERENCES);
   const [trendingMovies, setTrendingMovies] = useState<TMDBMediaItem[]>([]);
   const [trendingTv, setTrendingTv] = useState<TMDBMediaItem[]>([]);
   const [popularMovies, setPopularMovies] = useState<TMDBMediaItem[]>([]);
   const [popularTv, setPopularTv] = useState<TMDBMediaItem[]>([]);
+  const [tailoredRows, setTailoredRows] = useState<TailoredGenreRow[]>([]);
   const [isDiscoveryLoading, setIsDiscoveryLoading] = useState(true);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
 
@@ -29,14 +50,20 @@ export default function HomePage() {
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 10);
 
+  // Load preferences and discovery feeds
   useEffect(() => {
     let isMounted = true;
 
-    async function loadDiscoveryFeeds() {
+    async function loadFeedsAndPreferences() {
       try {
         setIsDiscoveryLoading(true);
         setDiscoveryError(null);
 
+        // 1. Load preferences
+        const prefs = await getContentPreferences();
+        if (isMounted) setPreferences(prefs);
+
+        // 2. Load standard trending and popular feeds
         const [tMovies, tTv, pMovies, pTv] = await Promise.all([
           tmdbService.getTrending('movie', 'week').catch(() => []),
           tmdbService.getTrending('tv', 'week').catch(() => []),
@@ -50,6 +77,69 @@ export default function HomePage() {
           setPopularMovies(pMovies as TMDBMediaItem[]);
           setPopularTv(pTv as TMDBMediaItem[]);
         }
+
+        // 3. Load Tailored Genre Rows based on favoriteGenres & mediaFocus
+        const genresToLoad = (prefs.favoriteGenres || []).slice(0, 3);
+        const rows: TailoredGenreRow[] = [];
+
+        // Determine quality thresholds
+        const minVoteAvg = prefs.qualityFilter === 'high_acclaim' ? 7.5 : prefs.qualityFilter === 'hidden_gems' ? 7.8 : undefined;
+        const minVoteCount = prefs.qualityFilter === 'hidden_gems' ? 50 : 80;
+        const yearGte = prefs.releaseWindow === 'recent' ? 2020 : undefined;
+        const yearLte = prefs.releaseWindow === 'classics' ? 2005 : undefined;
+
+        for (let i = 0; i < genresToLoad.length; i++) {
+          const gId = genresToLoad[i];
+          const genreDef = POPULAR_GENRES.find((g) => g.id === gId);
+          if (!genreDef) continue;
+
+          // Determine media type for this row based on user mediaFocus
+          let rowMediaType: MediaType = 'movie';
+          let withGenreId = genreDef.movieGenreId;
+
+          if (prefs.mediaFocus === 'tv') {
+            rowMediaType = 'tv';
+            withGenreId = genreDef.tvGenreId;
+          } else if (prefs.mediaFocus === 'movies') {
+            rowMediaType = 'movie';
+            withGenreId = genreDef.movieGenreId;
+          } else {
+            // Balanced: alternate between movies and tv
+            if (i % 2 === 1) {
+              rowMediaType = 'tv';
+              withGenreId = genreDef.tvGenreId;
+            } else {
+              rowMediaType = 'movie';
+              withGenreId = genreDef.movieGenreId;
+            }
+          }
+
+          try {
+            const items = await tmdbService.discoverMedia(rowMediaType, {
+              withGenres: [withGenreId],
+              minVoteAverage: minVoteAvg,
+              minVoteCount,
+              yearGte,
+              yearLte,
+              sortBy: prefs.qualityFilter === 'high_acclaim' ? 'vote_average.desc' : 'popularity.desc',
+            });
+
+            if (items.length > 0) {
+              rows.push({
+                genreId: gId,
+                genreName: genreDef.name,
+                mediaType: rowMediaType,
+                items,
+              });
+            }
+          } catch (e) {
+            console.error(`Failed to fetch tailored row for genre ${genreDef.name}:`, e);
+          }
+        }
+
+        if (isMounted) {
+          setTailoredRows(rows);
+        }
       } catch (err: any) {
         if (isMounted) {
           setDiscoveryError(err.message || 'Could not load discovery feeds');
@@ -59,18 +149,171 @@ export default function HomePage() {
       }
     }
 
-    loadDiscoveryFeeds();
+    loadFeedsAndPreferences();
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const heroItem = trendingMovies[0] || trendingTv[0] || null;
+  // Smart Hero Item: Matches preferred media focus and favorite genres
+  const heroItem = useMemo(() => {
+    const favoriteGenreSet = new Set(preferences.favoriteGenres || []);
+
+    // Helper to test if item matches user taste
+    const matchesTaste = (item: TMDBMediaItem) => {
+      if (!item.backdrop_path) return false;
+      if (favoriteGenreSet.size === 0) return true;
+      return item.genre_ids?.some((g) => favoriteGenreSet.has(g));
+    };
+
+    if (preferences.mediaFocus === 'tv') {
+      const tvMatch = trendingTv.find(matchesTaste) || trendingTv.find((t) => t.backdrop_path) || trendingMovies[0];
+      return tvMatch || null;
+    }
+
+    if (preferences.mediaFocus === 'movies') {
+      const movieMatch = trendingMovies.find(matchesTaste) || trendingMovies.find((m) => m.backdrop_path) || trendingTv[0];
+      return movieMatch || null;
+    }
+
+    // Balanced focus: pick best match across both
+    const all = [...trendingMovies, ...trendingTv];
+    const match = all.find(matchesTaste);
+    return match || trendingMovies[0] || trendingTv[0] || null;
+  }, [trendingMovies, trendingTv, preferences]);
+
+  // Names of selected favorite genres for display in taste badge
+  const favoriteGenreNames = useMemo(() => {
+    return (preferences.favoriteGenres || [])
+      .map((id) => POPULAR_GENRES.find((g) => g.id === id)?.name)
+      .filter(Boolean) as string[];
+  }, [preferences.favoriteGenres]);
+
+  // Standard row builders
+  const trendingMoviesRow = (
+    <MediaRow
+      key="trending-movies"
+      title="Trending Movies"
+      subtitle="The most popular motion pictures this week"
+      items={trendingMovies.map((m) => ({
+        id: m.id,
+        title: m.title || 'Untitled',
+        mediaType: 'movie',
+        posterPath: m.poster_path,
+        releaseDate: m.release_date,
+        voteAverage: m.vote_average,
+      }))}
+    />
+  );
+
+  const trendingTvRow = (
+    <MediaRow
+      key="trending-tv"
+      title="Trending Series"
+      subtitle="Binge-worthy shows and series trending now"
+      items={trendingTv.map((s) => ({
+        id: s.id,
+        title: s.name || 'Untitled',
+        mediaType: 'tv',
+        posterPath: s.poster_path,
+        releaseDate: s.first_air_date,
+        voteAverage: s.vote_average,
+      }))}
+    />
+  );
+
+  const popularMoviesRow = (
+    <MediaRow
+      key="popular-movies"
+      title="Popular Movies"
+      subtitle="Highest-rated and widely watched films"
+      items={popularMovies.map((m) => ({
+        id: m.id,
+        title: m.title || 'Untitled',
+        mediaType: 'movie',
+        posterPath: m.poster_path,
+        releaseDate: m.release_date,
+        voteAverage: m.vote_average,
+      }))}
+    />
+  );
+
+  const popularTvRow = (
+    <MediaRow
+      key="popular-tv"
+      title="Popular Series"
+      subtitle="Acclaimed television and streaming productions"
+      items={popularTv.map((s) => ({
+        id: s.id,
+        title: s.name || 'Untitled',
+        mediaType: 'tv',
+        posterPath: s.poster_path,
+        releaseDate: s.first_air_date,
+        voteAverage: s.vote_average,
+      }))}
+    />
+  );
+
+  // Smartly rearrange standard rows based on user mediaFocus
+  const arrangedStandardRows = useMemo(() => {
+    if (preferences.mediaFocus === 'tv') {
+      return [trendingTvRow, popularTvRow, trendingMoviesRow, popularMoviesRow];
+    }
+    if (preferences.mediaFocus === 'movies') {
+      return [trendingMoviesRow, popularMoviesRow, trendingTvRow, popularTvRow];
+    }
+    // Balanced
+    return [trendingMoviesRow, trendingTvRow, popularMoviesRow, popularTvRow];
+  }, [preferences.mediaFocus, trendingMovies, trendingTv, popularMovies, popularTv]);
 
   return (
     <div className="space-y-6">
-      {/* Hero Banner */}
+      {/* Hero Banner (Smartly Spotlighted) */}
       <HeroBanner item={heroItem} />
+
+      {/* Smart Arrangement Taste Indicator Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#11131c]/80 border border-white/5 text-xs shadow-lg backdrop-blur-sm">
+        <div className="flex items-center gap-2.5 text-slate-300">
+          <div className="p-1.5 rounded-lg bg-red-600/15 text-red-500 shrink-0">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-slate-400 font-medium">Smart Discover: </span>
+            <strong className="text-white capitalize">
+              {preferences.mediaFocus === 'tv'
+                ? 'TV Series Focus'
+                : preferences.mediaFocus === 'movies'
+                ? 'Movies Focus'
+                : 'Balanced Mix'}
+            </strong>
+            {favoriteGenreNames.length > 0 && (
+              <span className="hidden sm:inline">
+                {' '}
+                • Curated for:{' '}
+                <span className="text-slate-200 font-semibold">{favoriteGenreNames.join(', ')}</span>
+              </span>
+            )}
+            {preferences.qualityFilter === 'high_acclaim' && (
+              <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-mono text-[10px] font-bold">
+                ★ 7.5+ Acclaimed
+              </span>
+            )}
+            {preferences.qualityFilter === 'hidden_gems' && (
+              <span className="ml-1 px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 font-mono text-[10px] font-bold">
+                ✦ Hidden Gems
+              </span>
+            )}
+          </div>
+        </div>
+
+        <Link
+          href="/settings"
+          className="text-red-400 hover:text-red-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ml-auto"
+        >
+          <span>Adjust Preferences</span>
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+        </Link>
+      </div>
 
       {/* SECTION 1: Continue Watching (Strictly Real Personal Data) */}
       <section className="mb-10">
@@ -136,68 +379,32 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* SECTION 3: Trending Movies */}
-      <MediaRow
-        title="Trending Movies"
-        subtitle="The most popular motion pictures this week"
-        items={trendingMovies.map((m) => ({
-          id: m.id,
-          title: m.title || 'Untitled',
-          mediaType: 'movie',
-          posterPath: m.poster_path,
-          releaseDate: m.release_date,
-          voteAverage: m.vote_average,
-        }))}
-      />
+      {/* SECTION 3: TAILORED GENRE ROWS (Generated from user's favoriteGenres & mediaFocus) */}
+      {tailoredRows.map((row) => (
+        <MediaRow
+          key={`tailored-${row.genreId}-${row.mediaType}`}
+          title={`Top ${row.genreName} for You`}
+          subtitle={`Curated ${row.mediaType === 'tv' ? 'shows & series' : 'films'} tailored to your taste`}
+          items={row.items.map((item) => ({
+            id: item.id,
+            title: item.title || item.name || 'Untitled',
+            mediaType: row.mediaType,
+            posterPath: item.poster_path,
+            releaseDate: item.release_date || item.first_air_date,
+            voteAverage: item.vote_average,
+          }))}
+        />
+      ))}
 
-      {/* SECTION 4: Trending Series */}
-      <MediaRow
-        title="Trending Series"
-        subtitle="Binge-worthy shows and series trending now"
-        items={trendingTv.map((s) => ({
-          id: s.id,
-          title: s.name || 'Untitled',
-          mediaType: 'tv',
-          posterPath: s.poster_path,
-          releaseDate: s.first_air_date,
-          voteAverage: s.vote_average,
-        }))}
-      />
+      {/* SECTION 4+: SMARTLY ARRANGED STANDARD FEEDS (Media Focus Order) */}
+      {arrangedStandardRows}
 
-      {/* SECTION 5: Popular Movies */}
-      <MediaRow
-        title="Popular Movies"
-        subtitle="Highest-rated and widely watched films"
-        items={popularMovies.map((m) => ({
-          id: m.id,
-          title: m.title || 'Untitled',
-          mediaType: 'movie',
-          posterPath: m.poster_path,
-          releaseDate: m.release_date,
-          voteAverage: m.vote_average,
-        }))}
-      />
-
-      {/* SECTION 6: Popular Series */}
-      <MediaRow
-        title="Popular Series"
-        subtitle="Acclaimed television and streaming productions"
-        items={popularTv.map((s) => ({
-          id: s.id,
-          title: s.name || 'Untitled',
-          mediaType: 'tv',
-          posterPath: s.poster_path,
-          releaseDate: s.first_air_date,
-          voteAverage: s.vote_average,
-        }))}
-      />
-
-      {/* SECTION 7: Recommended / Discover Architecture Ready */}
+      {/* SECTION 5: Recommended / Taste Architecture Banner */}
       <section className="p-8 rounded-2xl bg-gradient-to-r from-red-950/20 via-[#10121a] to-[#12141f] border border-white/5 text-center">
         <Sparkles className="w-8 h-8 text-red-500 mx-auto mb-3" />
-        <h3 className="text-base font-bold text-white mb-1">Tailored Recommendations</h3>
+        <h3 className="text-base font-bold text-white mb-1">Tailored Discovery Active</h3>
         <p className="text-xs text-slate-400 max-w-md mx-auto">
-          As you track more movies and series in your personal library, WatchVault builds your taste profile to suggest curated recommendations.
+          WatchVault combines your personal watch tracking with your custom settings preferences to curate your home page.
         </p>
       </section>
     </div>

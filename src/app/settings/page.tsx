@@ -5,7 +5,13 @@ import { useSync } from '@/hooks/useSync';
 import { useLibrary } from '@/hooks/useLibrary';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { db, clearDiscoveryCache } from '@/lib/db';
-import { LibraryItem } from '@/lib/types';
+import { LibraryItem, ContentPreferences, MediaFocus, QualityFilter, ReleaseWindow } from '@/lib/types';
+import {
+  getContentPreferences,
+  saveContentPreferences,
+  POPULAR_GENRES,
+  DEFAULT_PREFERENCES,
+} from '@/lib/preferences/contentPreferences';
 import {
   SlidersHorizontal,
   RefreshCw,
@@ -22,6 +28,10 @@ import {
   Database,
   Wifi,
   WifiOff,
+  Sparkles,
+  Film,
+  Tv,
+  Compass,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
@@ -33,6 +43,7 @@ export default function SettingsPage() {
   // Local state
   const [editingDeviceName, setEditingDeviceName] = useState(deviceName);
   const [customKey, setCustomKey] = useState('');
+  const [preferences, setPreferences] = useState<ContentPreferences>(DEFAULT_PREFERENCES);
   const [storageEstimate, setStorageEstimate] = useState<{ usage: string; quota: string } | null>(null);
   const [discoveryCacheCount, setDiscoveryCacheCount] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -67,6 +78,9 @@ export default function SettingsPage() {
       if (customKeySetting?.value) {
         setCustomKey(customKeySetting.value);
       }
+
+      const prefs = await getContentPreferences();
+      setPreferences(prefs);
     }
     loadStats();
   }, [libraryItems]);
@@ -74,6 +88,18 @@ export default function SettingsPage() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleSavePreferences = async () => {
+    try {
+      await saveContentPreferences(preferences);
+      showToast('Discovery preferences saved & queued for sync');
+      if (isOnline) {
+        triggerSync();
+      }
+    } catch (err: any) {
+      alert(`Failed to save preferences: ${err?.message}`);
+    }
   };
 
   const handleSaveDeviceName = async () => {
@@ -315,7 +341,165 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* SECTION 3: Metadata Provider Configuration (TMDB) */}
+      {/* SECTION 3: Discovery & Content Preferences */}
+      <div className="p-6 rounded-2xl bg-[#11131c] border border-white/5 space-y-6 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-red-600/10 text-red-500">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white">Discovery & Content Preferences</h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Smartly shapes and rearranges movies, series, and curated feeds on your Discover home page.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSavePreferences}
+            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-lg shadow-red-950/40 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Save Preferences</span>
+          </button>
+        </div>
+
+        {/* 1. Primary Media Focus */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-slate-200 block">
+            Primary Media Focus
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { id: 'balanced', label: 'Balanced Mix', desc: 'Equal priority for Movies and TV Series', icon: Compass },
+              { id: 'movies', label: 'Movies First', desc: 'Prioritizes films, box office & cinema trends', icon: Film },
+              { id: 'tv', label: 'TV Series First', desc: 'Prioritizes shows, seasons & episode trackers', icon: Tv },
+            ].map((opt) => {
+              const Icon = opt.icon;
+              const isSelected = preferences.mediaFocus === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setPreferences({ ...preferences, mediaFocus: opt.id as MediaFocus })}
+                  className={cn(
+                    'p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1',
+                    isSelected
+                      ? 'bg-red-600/15 border-red-500/60 text-white shadow-md'
+                      : 'bg-white/[0.02] border-white/5 text-slate-300 hover:bg-white/[0.05]'
+                  )}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-xs">
+                    <Icon className={cn('w-4 h-4', isSelected ? 'text-red-500' : 'text-slate-400')} />
+                    <span>{opt.label}</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 leading-snug">{opt.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 2. Favorite Genres */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-200">
+              Favorite Genres
+            </label>
+            <span className="text-[11px] font-mono text-slate-400">
+              {preferences.favoriteGenres.length} selected (generates dedicated tailored rows)
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {POPULAR_GENRES.map((genre) => {
+              const isSelected = preferences.favoriteGenres.includes(genre.id);
+              return (
+                <button
+                  key={genre.id}
+                  type="button"
+                  onClick={() => {
+                    const exists = preferences.favoriteGenres.includes(genre.id);
+                    const next = exists
+                      ? preferences.favoriteGenres.filter((id) => id !== genre.id)
+                      : [...preferences.favoriteGenres, genre.id];
+                    setPreferences({ ...preferences, favoriteGenres: next });
+                  }}
+                  className={cn(
+                    'px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5',
+                    isSelected
+                      ? 'bg-red-600 border-red-500 text-white shadow-md shadow-red-950/40'
+                      : 'bg-[#181a24] border-white/5 text-slate-400 hover:text-white hover:border-white/20'
+                  )}
+                >
+                  <span>{genre.name}</span>
+                  {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 3. Content Quality Filter & Release Window */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-white/5">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-200 block">
+              Quality & Rating Filter
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'all', label: 'All Popular' },
+                { id: 'high_acclaim', label: '★ 7.5+ Acclaimed' },
+                { id: 'hidden_gems', label: 'Hidden Gems' },
+              ].map((q) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => setPreferences({ ...preferences, qualityFilter: q.id as QualityFilter })}
+                  className={cn(
+                    'p-2.5 rounded-xl border text-center text-xs font-semibold transition-all cursor-pointer',
+                    preferences.qualityFilter === q.id
+                      ? 'bg-red-600/15 border-red-500/60 text-white'
+                      : 'bg-[#181a24] border-white/5 text-slate-400 hover:text-white'
+                  )}
+                >
+                  {q.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-200 block">
+              Release Era Focus
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'any', label: 'Any Era' },
+                { id: 'recent', label: 'Modern (2020+)' },
+                { id: 'classics', label: 'Classics' },
+              ].map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => setPreferences({ ...preferences, releaseWindow: w.id as ReleaseWindow })}
+                  className={cn(
+                    'p-2.5 rounded-xl border text-center text-xs font-semibold transition-all cursor-pointer',
+                    preferences.releaseWindow === w.id
+                      ? 'bg-red-600/15 border-red-500/60 text-white'
+                      : 'bg-[#181a24] border-white/5 text-slate-400 hover:text-white'
+                  )}
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SECTION 4: Metadata Provider Configuration (TMDB) */}
       <div className="p-6 rounded-2xl bg-[#11131c] border border-white/5 space-y-4 shadow-xl">
         <div className="flex items-center gap-2.5 pb-3 border-b border-white/5">
           <Key className="w-5 h-5 text-amber-400" />

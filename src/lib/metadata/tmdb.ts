@@ -174,4 +174,55 @@ export const tmdbService = {
     const endpoint = `tv/${tvId}/season/${seasonNumber}`;
     return fetchWithCache<{ episodes: EpisodeInfo[] }>(key, endpoint, 86400 * 7);
   },
+
+  // Discover media by genre and quality preferences
+  async discoverMedia(
+    mediaType: 'movie' | 'tv',
+    options: {
+      withGenres?: number[];
+      minVoteAverage?: number;
+      minVoteCount?: number;
+      sortBy?: string;
+      yearGte?: number;
+      yearLte?: number;
+      page?: number;
+    } = {}
+  ): Promise<TMDBMediaItem[]> {
+    const {
+      withGenres = [],
+      minVoteAverage,
+      minVoteCount = 80,
+      sortBy = 'popularity.desc',
+      yearGte,
+      yearLte,
+      page = 1,
+    } = options;
+
+    const genreParam = withGenres.length > 0 ? withGenres.join(',') : '';
+    const cacheKey = `discover_${mediaType}_g${genreParam}_min${minVoteAverage || 0}_sort${sortBy}_p${page}`;
+
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('sort_by', sortBy);
+    if (genreParam) params.set('with_genres', genreParam);
+    if (minVoteAverage) {
+      params.set('vote_average.gte', String(minVoteAverage));
+      params.set('vote_count.gte', String(minVoteCount));
+    }
+    if (yearGte) {
+      if (mediaType === 'movie') params.set('primary_release_date.gte', `${yearGte}-01-01`);
+      else params.set('first_air_date.gte', `${yearGte}-01-01`);
+    }
+    if (yearLte) {
+      if (mediaType === 'movie') params.set('primary_release_date.lte', `${yearLte}-12-31`);
+      else params.set('first_air_date.lte', `${yearLte}-12-31`);
+    }
+
+    const endpoint = `discover/${mediaType}?${params.toString()}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[] }>(cacheKey, endpoint, 14400);
+    return (res.results || []).map((item) => ({
+      ...item,
+      media_type: mediaType,
+    }));
+  },
 };

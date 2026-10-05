@@ -1,15 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { SyncBadge } from './SyncBadge';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import { AppLogo } from './AppLogo';
+import { GlobalTopSearchBar } from './GlobalTopSearchBar';
 
 export function TopHeader() {
-  const router = useRouter();
-
   return (
     <header className="sticky top-0 z-40 w-full glass-nav border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -23,18 +21,15 @@ export function TopHeader() {
           </Link>
         </div>
 
-        {/* Global Search Bar */}
-        <div className="flex-1 max-w-md hidden sm:block">
-          <div
-            onClick={() => router.push('/search')}
-            className="w-full flex items-center gap-3 px-3.5 py-2 bg-[#12141d] hover:bg-[#181b26] border border-white/10 hover:border-white/20 rounded-xl text-sm text-slate-400 cursor-pointer transition-all duration-200 group"
+        {/* Global Live Interactive Search Bar */}
+        <div className="flex-1 max-w-lg hidden sm:block">
+          <Suspense
+            fallback={
+              <div className="w-full h-9 bg-[#12141d] rounded-xl border border-white/10 animate-pulse" />
+            }
           >
-            <Search className="w-4 h-4 text-slate-400 group-hover:text-red-400 transition-colors" />
-            <span className="flex-1 text-slate-400 font-normal">Search movies, series, titles...</span>
-            <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-white/5 border border-white/10 rounded text-slate-400">
-              /
-            </kbd>
-          </div>
+            <GlobalTopSearchBar />
+          </Suspense>
         </div>
 
         {/* Right side items: Sync status, Settings icon */}

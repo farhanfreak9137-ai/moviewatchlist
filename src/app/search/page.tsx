@@ -48,6 +48,17 @@ import {
   DisneyLogo,
 } from '@/components/icons/BrandLogos';
 
+const SEARCH_STATE_STORAGE_KEY = 'watchvault_active_search_state';
+
+interface SavedSearchState {
+  query: string;
+  inputQuery: string;
+  searchResult: SmartSearchResult;
+  filterType: 'all' | 'movie' | 'tv' | 'in_vault';
+  sortBy: 'relevance' | 'rating' | 'release_date' | 'title';
+  scrollY: number;
+}
+
 function renderHeroBrandLogo(iconType?: string, type?: string) {
   switch (iconType) {
     case 'marvel':
@@ -137,19 +148,51 @@ function SearchContent() {
     setRecentSearches(getRecentSearches());
   }, []);
 
-  // Trigger search whenever URL param changes (e.g. from top header search bar)
+  // Restore previous search state when navigating back from title details
   useEffect(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY) : null;
+      if (raw) {
+        const saved: SavedSearchState = JSON.parse(raw);
+        if (
+          saved &&
+          saved.searchResult?.items?.length > 0 &&
+          (!queryFromUrl || queryFromUrl.toLowerCase() === saved.query.toLowerCase())
+        ) {
+          setInputQuery(saved.inputQuery);
+          setExecutedQuery(saved.query);
+          setSearchResult(saved.searchResult);
+          setFilterType(saved.filterType || 'all');
+          setSortBy(saved.sortBy || 'relevance');
+          setHasSearched(true);
+
+          if (!queryFromUrl && typeof window !== 'undefined') {
+            window.history.replaceState(null, '', `/search?q=${encodeURIComponent(saved.query)}`);
+          }
+
+          if (saved.scrollY > 0) {
+            setTimeout(() => {
+              window.scrollTo({ top: saved.scrollY, behavior: 'instant' });
+            }, 60);
+          }
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to restore search state:', err);
+    }
+
     if (queryFromUrl) {
       setInputQuery(queryFromUrl);
       handleExecuteSearch(queryFromUrl);
     }
   }, [queryFromUrl]);
 
-  // Live autocomplete triggered starting from the very 1st letter
+  // Live autocomplete triggered starting from 1st letter, but NOT if search just completed
   useEffect(() => {
     const trimmed = inputQuery.trim();
 
-    if (!trimmed) {
+    if (!trimmed || (hasSearched && trimmed.toLowerCase() === executedQuery.toLowerCase())) {
       setAutocompleteResults({ titles: [], actors: [], franchises: [], genres: [] });
       setSelectedAutoIndex(-1);
       return;
@@ -172,18 +215,28 @@ function SearchContent() {
         clearTimeout(autocompleteTimeoutRef.current);
       }
     };
-  }, [inputQuery, libraryItems]);
+  }, [inputQuery, libraryItems, hasSearched, executedQuery]);
 
   // Execute full search and populate results
   const handleExecuteSearch = async (queryToRun: string, forceOriginal = false) => {
     const trimmed = queryToRun.trim();
     if (!trimmed) return;
 
+    if (autocompleteTimeoutRef.current) {
+      clearTimeout(autocompleteTimeoutRef.current);
+      autocompleteTimeoutRef.current = null;
+    }
     setIsAutocompleteOpen(false);
+    inputRef.current?.blur();
+
     setInputQuery(trimmed);
     setExecutedQuery(trimmed);
     setIsLoading(true);
     setHasSearched(true);
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `/search?q=${encodeURIComponent(trimmed)}`);
+    }
 
     // Save to recents
     const updatedRecents = addRecentSearch(trimmed);
@@ -195,6 +248,18 @@ function SearchContent() {
         forceOriginal,
       });
       setSearchResult(result);
+
+      if (typeof window !== 'undefined') {
+        const stateToSave: SavedSearchState = {
+          query: trimmed,
+          inputQuery: trimmed,
+          searchResult: result,
+          filterType,
+          sortBy,
+          scrollY: 0,
+        };
+        sessionStorage.setItem(SEARCH_STATE_STORAGE_KEY, JSON.stringify(stateToSave));
+      }
     } catch (err) {
       console.error('Search execution failed:', err);
     } finally {
@@ -203,8 +268,7 @@ function SearchContent() {
   };
 
   // Keyboard navigation across input and autocomplete popup
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Collect all selectable autocomplete items in order
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const allItems: string[] = [];
     if (autocompleteResults.didYouMean) allItems.push(autocompleteResults.didYouMean);
     autocompleteResults.franchises.forEach((i) => allItems.push(i.queryToExecute));
@@ -224,6 +288,12 @@ function SearchContent() {
       setSelectedAutoIndex((prev) => (prev - 1 >= 0 ? prev - 1 : allItems.length - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
+      if (autocompleteTimeoutRef.current) {
+        clearTimeout(autocompleteTimeoutRef.current);
+        autocompleteTimeoutRef.current = null;
+      }
+      setIsAutocompleteOpen(false);
+      inputRef.current?.blur();
       if (isAutocompleteOpen && selectedAutoIndex >= 0 && selectedAutoIndex < allItems.length) {
         handleExecuteSearch(allItems[selectedAutoIndex]);
       } else {
@@ -231,7 +301,19 @@ function SearchContent() {
       }
     } else if (e.key === 'Escape') {
       setIsAutocompleteOpen(false);
+      inputRef.current?.blur();
     }
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (autocompleteTimeoutRef.current) {
+      clearTimeout(autocompleteTimeoutRef.current);
+      autocompleteTimeoutRef.current = null;
+    }
+    setIsAutocompleteOpen(false);
+    inputRef.current?.blur();
+    handleExecuteSearch(inputQuery);
   };
 
   // Filter & Sort Pipeline
@@ -285,21 +367,29 @@ function SearchContent() {
           <span>Search & Cinematic Vault</span>
         </h1>
         <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Explore movies, series, studios, actors, and genres with instant typo correction and smart suggestion.
+          Explore movies, series, studios, actors, and genres with instant typo correction and smart suggestions.
         </p>
       </div>
 
-      {/* Main Search Bar with 1st-letter Autocomplete and "Search / OK" button */}
-      <div className="relative">
+      {/* Main Search Bar wrapped in form with 1st-letter Autocomplete and Search button */}
+      <form onSubmit={handleFormSubmit} action="javascript:void(0);" className="relative">
         <div className="relative flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               ref={inputRef}
-              type="text"
+              type="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
               value={inputQuery}
               onChange={(e) => setInputQuery(e.target.value)}
-              onFocus={() => setIsAutocompleteOpen(true)}
+              onFocus={() => {
+                if (inputQuery.trim() && (!hasSearched || inputQuery.trim().toLowerCase() !== executedQuery.toLowerCase())) {
+                  setIsAutocompleteOpen(true);
+                }
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Search by title, actor, 'Marvel', 'DC', 'Action'..."
               autoFocus
@@ -325,8 +415,7 @@ function SearchContent() {
 
           {/* Explicit "OK / Search" Button */}
           <button
-            type="button"
-            onClick={() => handleExecuteSearch(inputQuery)}
+            type="submit"
             disabled={!inputQuery.trim() || isLoading}
             className="flex items-center gap-2 px-5 py-3.5 bg-red-600 hover:bg-red-500 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none text-white font-semibold text-sm rounded-2xl shadow-lg shadow-red-600/30 transition-all cursor-pointer shrink-0"
           >
@@ -335,7 +424,7 @@ function SearchContent() {
           </button>
         </div>
 
-        {/* Instant Categorized Dropdown (1st letter to full queries) */}
+        {/* Instant Categorized Dropdown */}
         <SearchAutocomplete
           isOpen={isAutocompleteOpen}
           onClose={() => setIsAutocompleteOpen(false)}
@@ -350,7 +439,7 @@ function SearchContent() {
             setRecentSearches([]);
           }}
         />
-      </div>
+      </form>
 
       {/* Quick Inspiration & Trending Chips */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
@@ -361,6 +450,7 @@ function SearchContent() {
         {INSPIRATION_CHIPS.map((chip) => (
           <button
             key={chip.label}
+            type="button"
             onClick={() => handleExecuteSearch(chip.query)}
             className="flex items-center gap-2 px-3 py-1.5 bg-[#121422] hover:bg-white/10 border border-white/5 hover:border-white/15 rounded-xl text-slate-300 hover:text-white transition-all shrink-0 cursor-pointer"
           >
@@ -384,6 +474,7 @@ function SearchContent() {
             </p>
           </div>
           <button
+            type="button"
             onClick={() => handleExecuteSearch(searchResult.correctedFrom!, true)}
             className="text-xs underline text-amber-400/80 hover:text-amber-200 transition-colors ml-4 shrink-0 cursor-pointer"
           >
@@ -398,6 +489,7 @@ function SearchContent() {
           <Sparkles className="w-4 h-4 text-red-400 shrink-0" />
           <span>Did you mean:</span>
           <button
+            type="button"
             onClick={() => handleExecuteSearch(searchResult.didYouMean!)}
             className="font-semibold text-white underline underline-offset-4 hover:text-red-300 transition-colors cursor-pointer"
           >
@@ -474,6 +566,7 @@ function SearchContent() {
           {/* Media Type Filter Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
             <button
+              type="button"
               onClick={() => setFilterType('all')}
               className={cn(
                 'px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0',
@@ -485,6 +578,7 @@ function SearchContent() {
               All ({searchResult.items.length})
             </button>
             <button
+              type="button"
               onClick={() => setFilterType('movie')}
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0',
@@ -505,6 +599,7 @@ function SearchContent() {
               </span>
             </button>
             <button
+              type="button"
               onClick={() => setFilterType('tv')}
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0',
@@ -526,6 +621,7 @@ function SearchContent() {
             </button>
             {vaultItemsCount > 0 && (
               <button
+                type="button"
                 onClick={() => setFilterType('in_vault')}
                 className={cn(
                   'flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0',
@@ -575,7 +671,31 @@ function SearchContent() {
               {filteredAndSortedResults.length === 1 ? '' : 's'}
             </h2>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4"
+            onClickCapture={() => {
+              // Persist exact scroll position and filter state when navigating to title
+              try {
+                if (typeof window !== 'undefined') {
+                  const raw = sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY);
+                  if (raw) {
+                    const parsed = JSON.parse(raw);
+                    sessionStorage.setItem(
+                      SEARCH_STATE_STORAGE_KEY,
+                      JSON.stringify({
+                        ...parsed,
+                        scrollY: window.scrollY || 0,
+                        filterType,
+                        sortBy,
+                      })
+                    );
+                  }
+                }
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+          >
             {filteredAndSortedResults.map((item) => (
               <MediaCard
                 key={`${item.media_type}-${item.id}`}

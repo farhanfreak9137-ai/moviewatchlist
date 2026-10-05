@@ -17,7 +17,6 @@ import {
   Loader2,
   TrendingUp,
   TrendingDown,
-  DollarSign,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
@@ -131,24 +130,24 @@ export function MediaCard({
             /* Movie with Box Office Data: Number & Success / Flop Indicator */
             <div
               className={cn(
-                'flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono font-bold text-[10px] shadow-lg backdrop-blur-md border tracking-tight',
+                'flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono font-bold text-[10px] shadow-lg backdrop-blur-md border tracking-tight max-w-full',
                 financial.verdict === 'blockbuster'
-                  ? 'bg-amber-950/85 border-amber-500/50 text-amber-300 shadow-amber-950/40'
+                  ? 'bg-amber-950/90 border-amber-500/50 text-amber-300 shadow-amber-950/50'
                   : financial.verdict === 'hit'
-                  ? 'bg-emerald-950/85 border-emerald-500/50 text-emerald-300 shadow-emerald-950/40'
+                  ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-300 shadow-emerald-950/50'
                   : financial.verdict === 'flop'
-                  ? 'bg-rose-950/85 border-rose-500/50 text-rose-300 shadow-rose-950/40'
+                  ? 'bg-rose-950/90 border-rose-500/50 text-rose-300 shadow-rose-950/50'
                   : 'bg-black/80 border-white/15 text-slate-300'
               )}
             >
               {financial.verdict === 'flop' ? (
-                <TrendingDown className="w-3 h-3 text-rose-400 stroke-[2.5]" />
+                <TrendingDown className="w-3 h-3 text-rose-400 stroke-[2.5] shrink-0" />
               ) : (
-                <TrendingUp className="w-3 h-3 text-emerald-400 stroke-[2.5]" />
+                <TrendingUp className="w-3 h-3 text-emerald-400 stroke-[2.5] shrink-0" />
               )}
-              <span>{financial.formattedRevenue}</span>
+              <span className="truncate">{financial.formattedRevenue}</span>
               <span className="opacity-40">•</span>
-              <span className="uppercase text-[9px] font-black">
+              <span className="uppercase text-[9px] font-black shrink-0">
                 {financial.verdict === 'flop'
                   ? 'FLOP'
                   : financial.verdict === 'blockbuster'
@@ -160,7 +159,7 @@ export function MediaCard({
             </div>
           ) : isInLibrary && libraryItem.rating > 0 ? (
             <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/90 text-black font-bold text-[11px] shadow">
-              <Star className="w-3 h-3 fill-black text-black" />
+              <Star className="w-3 h-3 fill-black text-black shrink-0" />
               <span>{libraryItem.rating}/10</span>
             </div>
           ) : voteAverage ? (
@@ -174,12 +173,12 @@ export function MediaCard({
                   : 'bg-black/70 border-white/10 text-amber-400'
               )}
             >
-              <Star className="w-3 h-3 fill-current text-current" />
+              <Star className="w-3 h-3 fill-current text-current shrink-0" />
               <span className="font-bold">{voteAverage.toFixed(1)}</span>
               {financial?.verdict && financial.verdict !== 'unknown' && (
                 <>
                   <span className="opacity-40">•</span>
-                  <span className="uppercase font-black text-[9px]">
+                  <span className="uppercase font-black text-[9px] shrink-0">
                     {financial.verdict === 'flop' ? 'FLOP' : 'HIT'}
                   </span>
                 </>
@@ -188,7 +187,7 @@ export function MediaCard({
           ) : null}
 
           {isInLibrary && libraryItem.is_favorite && (
-            <div className="p-1 rounded-full bg-rose-500 text-white shadow-md ml-auto">
+            <div className="p-1 rounded-full bg-rose-500 text-white shadow-md ml-auto shrink-0">
               <Heart className="w-3 h-3 fill-current" />
             </div>
           )}
@@ -196,63 +195,26 @@ export function MediaCard({
       </Link>
 
       {/* Title & Metadata Details */}
-      <div className="p-3 flex-1 flex flex-col justify-between">
+      <div className="p-2.5 sm:p-3 flex-1 flex flex-col justify-between">
         <Link href={`/title?mediaType=${mediaType}&id=${id}`} className="block">
-          <h3 className="font-semibold text-sm text-slate-100 line-clamp-1 group-hover:text-red-400 transition-colors">
+          <h3 className="font-semibold text-xs sm:text-sm text-slate-100 line-clamp-1 group-hover:text-red-400 transition-colors">
             {title}
           </h3>
-          <div className="flex items-center justify-between gap-1.5 mt-1 text-xs text-slate-400 font-mono">
-            {year && <span>{year}</span>}
-            {financial && financial.hasBoxOfficeData ? (
-              <div className="flex items-center gap-1 text-[11px]">
-                <span className="text-slate-400">Earned:</span>
-                <span
-                  className={cn(
-                    'font-bold',
-                    financial.verdict === 'blockbuster'
-                      ? 'text-amber-400'
-                      : financial.verdict === 'hit'
-                      ? 'text-emerald-400'
-                      : financial.verdict === 'flop'
-                      ? 'text-rose-400'
-                      : 'text-slate-200'
-                  )}
-                >
-                  {financial.formattedRevenue}
-                </span>
-                <span
-                  className={cn(
-                    'text-[9px] font-black uppercase px-1 py-0.2 rounded border',
-                    financial.verdict === 'blockbuster'
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                      : financial.verdict === 'hit'
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                      : financial.verdict === 'flop'
-                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                      : 'bg-white/5 border-white/10 text-slate-400'
-                  )}
-                >
-                  {financial.verdict === 'flop'
-                    ? 'Flop'
-                    : financial.verdict === 'blockbuster'
-                    ? 'Super Hit'
-                    : financial.verdict === 'hit'
-                    ? 'Hit'
-                    : 'Avg'}
-                </span>
-              </div>
-            ) : financial?.verdict && financial.verdict !== 'unknown' ? (
-              <span
-                className={cn(
-                  'text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ml-auto',
-                  financial.verdict === 'flop'
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                )}
-              >
-                {financial.verdict === 'flop' ? 'Flop' : 'Hit Series'}
+          <div className="flex items-center justify-between gap-1.5 mt-1 text-[11px] text-slate-400 font-mono">
+            <div className="flex items-center gap-1.5 truncate">
+              {year && <span>{year}</span>}
+              {year && <span className="text-slate-600">•</span>}
+              <span className="capitalize text-slate-400">
+                {mediaType === 'movie' ? 'Movie' : 'Series'}
               </span>
-            ) : null}
+            </div>
+
+            {voteAverage && !financial?.hasBoxOfficeData && (
+              <div className="flex items-center gap-1 text-amber-400 shrink-0 font-medium">
+                <Star className="w-2.5 h-2.5 fill-current text-current" />
+                <span>{voteAverage.toFixed(1)}</span>
+              </div>
+            )}
           </div>
         </Link>
 

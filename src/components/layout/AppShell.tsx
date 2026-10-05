@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { MobileNav } from './MobileNav';
+import { HardwareBackButtonHandler } from './HardwareBackButtonHandler';
 import { syncEngine } from '@/lib/sync/syncEngine';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col lg:flex-row antialiased">
+      {/* Android Hardware Back Button Interceptor */}
+      <HardwareBackButtonHandler />
+
       {/* Desktop Sidebar */}
       <Sidebar />
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useTransition } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Search, X, Loader2, ArrowRight } from 'lucide-react';
 import { useLibrary } from '@/hooks/useLibrary';
@@ -69,6 +69,7 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
         inputRef.current?.select();
       } else if (e.key === 'Escape' && isAutocompleteOpen) {
         setIsAutocompleteOpen(false);
+        setIsFocused(false);
         inputRef.current?.blur();
       }
     };
@@ -128,10 +129,16 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
     const trimmed = searchQuery.trim();
     if (!trimmed) return;
 
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    setIsAutocompleteOpen(false);
+    setIsFocused(false);
+    inputRef.current?.blur();
+
     addRecentSearch(trimmed);
     setRecentSearches(getRecentSearches());
-    setIsAutocompleteOpen(false);
-    inputRef.current?.blur();
 
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
   };
@@ -150,7 +157,7 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
 
   return (
     <div ref={containerRef} className={cn('relative w-full max-w-lg', className)}>
-      <form onSubmit={handleFormSubmit} className="relative w-full flex items-center">
+      <form onSubmit={handleFormSubmit} action="javascript:void(0);" className="relative w-full flex items-center">
         <div className="relative w-full flex items-center">
           <Search
             className={cn(
@@ -161,7 +168,11 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
 
           <input
             ref={inputRef}
-            type="text"
+            type="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -220,7 +231,10 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
       {/* Autocomplete Dropdown */}
       <SearchAutocomplete
         isOpen={isAutocompleteOpen && isFocused}
-        onClose={() => setIsAutocompleteOpen(false)}
+        onClose={() => {
+          setIsAutocompleteOpen(false);
+          setIsFocused(false);
+        }}
         results={autocompleteResults}
         query={query}
         recentSearches={recentSearches}

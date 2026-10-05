@@ -5,8 +5,20 @@ import Link from 'next/link';
 import { useLibrary } from '@/hooks/useLibrary';
 import { MediaType, WatchStatus } from '@/lib/types';
 import { getImageUrl, tmdbService } from '@/lib/metadata/tmdb';
+import { useFinancials } from '@/lib/metadata/financials';
 import { StatusBadge } from './StatusBadge';
-import { Plus, Check, Star, Heart, Film, Tv, Loader2 } from 'lucide-react';
+import {
+  Plus,
+  Check,
+  Star,
+  Heart,
+  Film,
+  Tv,
+  Loader2,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+} from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 interface MediaCardProps {
@@ -31,6 +43,8 @@ export function MediaCard({
   const { getItemByTmdbId, addToLibrary } = useLibrary();
   const libraryItem = getItemByTmdbId(id, mediaType);
   const isInLibrary = !!libraryItem;
+
+  const { financial } = useFinancials(id, mediaType, voteAverage);
 
   const [isAdding, setIsAdding] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -111,22 +125,70 @@ export function MediaCard({
           </button>
         )}
 
-        {/* Bottom overlay with ratings & favorite */}
-        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-xs">
-          {isInLibrary && libraryItem.rating > 0 ? (
+        {/* Bottom overlay with financial verdict, earned number, and ratings */}
+        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-xs gap-1.5 pointer-events-none">
+          {financial && financial.hasBoxOfficeData ? (
+            /* Movie with Box Office Data: Number & Success / Flop Indicator */
+            <div
+              className={cn(
+                'flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono font-bold text-[10px] shadow-lg backdrop-blur-md border tracking-tight',
+                financial.verdict === 'blockbuster'
+                  ? 'bg-amber-950/85 border-amber-500/50 text-amber-300 shadow-amber-950/40'
+                  : financial.verdict === 'hit'
+                  ? 'bg-emerald-950/85 border-emerald-500/50 text-emerald-300 shadow-emerald-950/40'
+                  : financial.verdict === 'flop'
+                  ? 'bg-rose-950/85 border-rose-500/50 text-rose-300 shadow-rose-950/40'
+                  : 'bg-black/80 border-white/15 text-slate-300'
+              )}
+            >
+              {financial.verdict === 'flop' ? (
+                <TrendingDown className="w-3 h-3 text-rose-400 stroke-[2.5]" />
+              ) : (
+                <TrendingUp className="w-3 h-3 text-emerald-400 stroke-[2.5]" />
+              )}
+              <span>{financial.formattedRevenue}</span>
+              <span className="opacity-40">•</span>
+              <span className="uppercase text-[9px] font-black">
+                {financial.verdict === 'flop'
+                  ? 'FLOP'
+                  : financial.verdict === 'blockbuster'
+                  ? 'SUPER HIT'
+                  : financial.verdict === 'hit'
+                  ? 'HIT'
+                  : 'AVG'}
+              </span>
+            </div>
+          ) : isInLibrary && libraryItem.rating > 0 ? (
             <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/90 text-black font-bold text-[11px] shadow">
               <Star className="w-3 h-3 fill-black text-black" />
               <span>{libraryItem.rating}/10</span>
             </div>
           ) : voteAverage ? (
-            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-amber-400 font-medium text-[11px]">
-              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-              <span>{voteAverage.toFixed(1)}</span>
+            <div
+              className={cn(
+                'flex items-center gap-1 px-1.5 py-0.5 rounded-md backdrop-blur-md font-mono font-medium text-[10px] border shadow-sm',
+                financial?.verdict === 'flop'
+                  ? 'bg-rose-950/80 border-rose-500/40 text-rose-300'
+                  : financial?.verdict === 'blockbuster' || financial?.verdict === 'hit'
+                  ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300'
+                  : 'bg-black/70 border-white/10 text-amber-400'
+              )}
+            >
+              <Star className="w-3 h-3 fill-current text-current" />
+              <span className="font-bold">{voteAverage.toFixed(1)}</span>
+              {financial?.verdict && financial.verdict !== 'unknown' && (
+                <>
+                  <span className="opacity-40">•</span>
+                  <span className="uppercase font-black text-[9px]">
+                    {financial.verdict === 'flop' ? 'FLOP' : 'HIT'}
+                  </span>
+                </>
+              )}
             </div>
           ) : null}
 
           {isInLibrary && libraryItem.is_favorite && (
-            <div className="p-1 rounded-full bg-rose-500 text-white shadow-md">
+            <div className="p-1 rounded-full bg-rose-500 text-white shadow-md ml-auto">
               <Heart className="w-3 h-3 fill-current" />
             </div>
           )}
@@ -139,8 +201,58 @@ export function MediaCard({
           <h3 className="font-semibold text-sm text-slate-100 line-clamp-1 group-hover:text-red-400 transition-colors">
             {title}
           </h3>
-          <div className="flex items-center gap-2 mt-1 text-xs text-slate-400 font-mono">
+          <div className="flex items-center justify-between gap-1.5 mt-1 text-xs text-slate-400 font-mono">
             {year && <span>{year}</span>}
+            {financial && financial.hasBoxOfficeData ? (
+              <div className="flex items-center gap-1 text-[11px]">
+                <span className="text-slate-400">Earned:</span>
+                <span
+                  className={cn(
+                    'font-bold',
+                    financial.verdict === 'blockbuster'
+                      ? 'text-amber-400'
+                      : financial.verdict === 'hit'
+                      ? 'text-emerald-400'
+                      : financial.verdict === 'flop'
+                      ? 'text-rose-400'
+                      : 'text-slate-200'
+                  )}
+                >
+                  {financial.formattedRevenue}
+                </span>
+                <span
+                  className={cn(
+                    'text-[9px] font-black uppercase px-1 py-0.2 rounded border',
+                    financial.verdict === 'blockbuster'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : financial.verdict === 'hit'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : financial.verdict === 'flop'
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                      : 'bg-white/5 border-white/10 text-slate-400'
+                  )}
+                >
+                  {financial.verdict === 'flop'
+                    ? 'Flop'
+                    : financial.verdict === 'blockbuster'
+                    ? 'Super Hit'
+                    : financial.verdict === 'hit'
+                    ? 'Hit'
+                    : 'Avg'}
+                </span>
+              </div>
+            ) : financial?.verdict && financial.verdict !== 'unknown' ? (
+              <span
+                className={cn(
+                  'text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ml-auto',
+                  financial.verdict === 'flop'
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                )}
+              >
+                {financial.verdict === 'flop' ? 'Flop' : 'Hit Series'}
+              </span>
+            ) : null}
           </div>
         </Link>
 

@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils/cn';
 import { TrailerModal } from '@/components/details/TrailerModal';
 import { StreamingProviders } from '@/components/details/StreamingProviders';
 import { UpNextEpisodeCard } from '@/components/details/UpNextEpisodeCard';
+import { FinancialPerformanceSection } from '@/components/details/FinancialPerformanceSection';
 
 function TitleDetailContent() {
   const searchParams = useSearchParams();
@@ -447,6 +448,19 @@ function TitleDetailContent() {
 
             {/* Cast Carousel */}
             <CastCarousel cast={cast} />
+
+            {/* Box Office, Earnings & Success Rate Metrics */}
+            <FinancialPerformanceSection
+              mediaType={mediaType}
+              title={title}
+              budget={metadata?.budget || libraryItem?.budget || 0}
+              revenue={metadata?.revenue || libraryItem?.revenue || 0}
+              voteAverage={metadata?.vote_average || libraryItem?.rating || 0}
+              voteCount={metadata?.vote_count || 0}
+              status={metadata?.status}
+              numberOfSeasons={metadata?.number_of_seasons || libraryItem?.number_of_seasons}
+              numberOfEpisodes={metadata?.number_of_episodes || libraryItem?.number_of_episodes}
+            />
 
             {/* Where to Watch / Streaming Availability */}
             <StreamingProviders providersData={metadata?.['watch/providers']} />

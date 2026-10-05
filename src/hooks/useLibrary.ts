@@ -117,6 +117,8 @@ export function useLibrary() {
       director,
       creator,
       cast: topCast,
+      budget: details.budget,
+      revenue: details.revenue,
       status: initialStatus,
       rating: initialRating,
       is_favorite: isFavorite,

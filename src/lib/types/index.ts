@@ -50,6 +50,8 @@ export interface LibraryItem {
   director?: string;
   creator?: string;
   cast: CastMember[];
+  budget?: number;
+  revenue?: number;
   
   // Personal watch information
   status: WatchStatus;

@@ -19,6 +19,61 @@ export interface TMDBMediaItem {
   popularity: number;
 }
 
+export interface TMDBPersonResult {
+  id: number;
+  name: string;
+  original_name?: string;
+  profile_path: string | null;
+  known_for_department?: string;
+  popularity: number;
+  known_for?: Array<{
+    id: number;
+    title?: string;
+    name?: string;
+    media_type: 'movie' | 'tv';
+    poster_path: string | null;
+    release_date?: string;
+    first_air_date?: string;
+    vote_average?: number;
+  }>;
+}
+
+export interface PersonCombinedCreditsResponse {
+  id: number;
+  cast: Array<{
+    id: number;
+    title?: string;
+    name?: string;
+    media_type: 'movie' | 'tv';
+    poster_path: string | null;
+    backdrop_path: string | null;
+    release_date?: string;
+    first_air_date?: string;
+    character?: string;
+    vote_average: number;
+    vote_count: number;
+    popularity: number;
+    overview?: string;
+    genre_ids?: number[];
+  }>;
+  crew: Array<{
+    id: number;
+    title?: string;
+    name?: string;
+    media_type: 'movie' | 'tv';
+    poster_path: string | null;
+    backdrop_path: string | null;
+    release_date?: string;
+    first_air_date?: string;
+    job?: string;
+    department?: string;
+    vote_average: number;
+    vote_count: number;
+    popularity: number;
+    overview?: string;
+  }>;
+}
+
 export interface TMDBDetailsResponse {
   id: number;
   title?: string;
@@ -35,6 +90,9 @@ export interface TMDBDetailsResponse {
   number_of_seasons?: number;
   number_of_episodes?: number;
   tagline?: string;
+  budget?: number;
+  revenue?: number;
+  status?: string;
   vote_average?: number;
   vote_count?: number;
   genres: Array<{ id: number; name: string }>;
@@ -267,4 +325,128 @@ export const tmdbService = {
       media_type: mediaType,
     }));
   },
+
+  // Search people / actors
+  async searchPerson(query: string, page: number = 1): Promise<TMDBPersonResult[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const key = `person_search_${encodeURIComponent(trimmed.toLowerCase())}_p${page}`;
+    const endpoint = `search/person?query=${encodeURIComponent(trimmed)}&page=${page}&include_adult=false`;
+    const res = await fetchWithCache<{ results: TMDBPersonResult[] }>(key, endpoint, 86400);
+    return res.results || [];
+  },
+
+  // Get person details (bio, profile picture)
+  async getPersonDetails(personId: number) {
+    const key = `person_details_${personId}`;
+    const endpoint = `person/${personId}`;
+    return fetchWithCache<{
+      id: number;
+      name: string;
+      biography?: string;
+      profile_path: string | null;
+      known_for_department?: string;
+      birthday?: string;
+      place_of_birth?: string;
+    }>(key, endpoint, 86400 * 7);
+  },
+
+  // Get all movie and TV credits for a person / actor
+  async getPersonCombinedCredits(personId: number): Promise<PersonCombinedCreditsResponse> {
+    const key = `person_credits_${personId}`;
+    const endpoint = `person/${personId}/combined_credits`;
+    return fetchWithCache<PersonCombinedCreditsResponse>(key, endpoint, 86400 * 3);
+  },
+
+  // Discover by production companies (e.g. Marvel Studios, DC Films, Pixar, Ghibli, A24)
+  async discoverByCompanies(
+    companyIds: number[],
+    mediaType: 'movie' | 'tv' = 'movie',
+    page: number = 1
+  ): Promise<TMDBMediaItem[]> {
+    if (!companyIds || companyIds.length === 0) return [];
+    const key = `discover_comp_${mediaType}_${companyIds.join('_')}_p${page}`;
+    const endpoint = `discover/${mediaType}?with_companies=${companyIds.join('|')}&sort_by=popularity.desc&page=${page}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[] }>(key, endpoint, 14400);
+    return (res.results || []).map((item) => ({
+      ...item,
+      media_type: mediaType,
+    }));
+  },
+
+  // Discover by genres (e.g. Action, Sci-Fi, Horror, Animation)
+  async discoverByGenres(
+    genreIds: number[],
+    mediaType: 'movie' | 'tv' = 'movie',
+    page: number = 1
+  ): Promise<TMDBMediaItem[]> {
+    if (!genreIds || genreIds.length === 0) return [];
+    const key = `discover_genre_${mediaType}_${genreIds.join('_')}_p${page}`;
+    const endpoint = `discover/${mediaType}?with_genres=${genreIds.join(',')}&sort_by=popularity.desc&page=${page}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[] }>(key, endpoint, 14400);
+    return (res.results || []).map((item) => ({
+      ...item,
+      media_type: mediaType,
+    }));
+  },
+
+  // Raw multi-search that includes person results (used by autocomplete and entity recognition)
+  async searchMultiRaw(query: string, page: number = 1) {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const key = `search_raw_${encodeURIComponent(trimmed.toLowerCase())}_p${page}`;
+    const endpoint = `search/multi?query=${encodeURIComponent(trimmed)}&page=${page}&include_adult=false`;
+    const res = await fetchWithCache<{
+      results: Array<TMDBMediaItem & { name?: string; media_type: string; profile_path?: string | null; known_for_department?: string }>;
+    }>(key, endpoint, 86400);
+    return res.results || [];
+  },
+
+  // Trending Hindi / Bollywood (Movies or Series)
+  async getTrendingHindi(mediaType: 'movie' | 'tv' = 'movie', page: number = 1): Promise<TMDBMediaItem[]> {
+    const key = `trending_hindi_${mediaType}_p${page}`;
+    const endpoint = `discover/${mediaType}?with_original_language=hi&sort_by=popularity.desc&page=${page}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[] }>(key, endpoint, 14400);
+    return (res.results || []).map((item) => ({
+      ...item,
+      media_type: mediaType,
+    }));
+  },
+
+  // Most Popular / Highly Voted Hindi (Movies or Series)
+  async getMostPopularHindi(mediaType: 'movie' | 'tv' = 'movie', page: number = 1): Promise<TMDBMediaItem[]> {
+    const minVotes = mediaType === 'tv' ? 10 : 50;
+    const key = `popular_hindi_${mediaType}_p${page}`;
+    const endpoint = `discover/${mediaType}?with_original_language=hi&sort_by=vote_count.desc&vote_count.gte=${minVotes}&page=${page}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[] }>(key, endpoint, 14400);
+    return (res.results || []).map((item) => ({
+      ...item,
+      media_type: mediaType,
+    }));
+  },
+
+  // Highest Grossing / Most Earned Movies (Hindi or English)
+  async getHighestGrossing(language: 'hi' | 'en' = 'hi', page: number = 1): Promise<TMDBMediaItem[]> {
+    const minVotes = language === 'hi' ? 30 : 100;
+    const key = `highest_grossing_${language}_p${page}`;
+    const endpoint = `discover/movie?with_original_language=${language}&sort_by=revenue.desc&vote_count.gte=${minVotes}&page=${page}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[] }>(key, endpoint, 14400);
+    return (res.results || []).map((item) => ({
+      ...item,
+      media_type: 'movie' as MediaType,
+    }));
+  },
+
+  // Most Popular / Acclaimed English Media (Movies or Series)
+  async getMostPopularEnglish(mediaType: 'movie' | 'tv' = 'movie', page: number = 1): Promise<TMDBMediaItem[]> {
+    const minVotes = mediaType === 'tv' ? 300 : 500;
+    const key = `popular_english_${mediaType}_p${page}`;
+    const endpoint = `discover/${mediaType}?with_original_language=en&sort_by=vote_count.desc&vote_count.gte=${minVotes}&page=${page}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[] }>(key, endpoint, 14400);
+    return (res.results || []).map((item) => ({
+      ...item,
+      media_type: mediaType,
+    }));
+  },
 };
+

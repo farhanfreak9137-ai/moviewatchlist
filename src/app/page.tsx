@@ -9,9 +9,7 @@ import { ContentPreferences, MediaType } from '@/lib/types';
 import { HeroBanner } from '@/components/media/HeroBanner';
 import { MediaRow } from '@/components/media/MediaRow';
 import { MediaCard } from '@/components/media/MediaCard';
-import { EmptyState } from '@/components/library/EmptyState';
 import {
-  Compass,
   PlayCircle,
   History,
   Sparkles,
@@ -19,7 +17,13 @@ import {
   SlidersHorizontal,
   Film,
   Tv,
+  Flame,
+  Trophy,
+  DollarSign,
+  Globe,
+  Star,
 } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
 
 interface TailoredGenreRow {
   genreId: number;
@@ -28,14 +32,32 @@ interface TailoredGenreRow {
   items: TMDBMediaItem[];
 }
 
+type DiscoverHub = 'all' | 'hindi' | 'english' | 'tv';
+
 export default function HomePage() {
   const { libraryItems, isLoading: isLibraryLoading } = useLibrary();
 
   const [preferences, setPreferences] = useState<ContentPreferences>(DEFAULT_PREFERENCES);
+  const [activeHub, setActiveHub] = useState<DiscoverHub>('all');
+
+  // Standard Feeds
   const [trendingMovies, setTrendingMovies] = useState<TMDBMediaItem[]>([]);
   const [trendingTv, setTrendingTv] = useState<TMDBMediaItem[]>([]);
   const [popularMovies, setPopularMovies] = useState<TMDBMediaItem[]>([]);
   const [popularTv, setPopularTv] = useState<TMDBMediaItem[]>([]);
+
+  // Hindi / Bollywood Feeds
+  const [trendingHindiMovies, setTrendingHindiMovies] = useState<TMDBMediaItem[]>([]);
+  const [popularHindiMovies, setPopularHindiMovies] = useState<TMDBMediaItem[]>([]);
+  const [highestGrossingHindi, setHighestGrossingHindi] = useState<TMDBMediaItem[]>([]);
+  const [trendingHindiTv, setTrendingHindiTv] = useState<TMDBMediaItem[]>([]);
+  const [popularHindiTv, setPopularHindiTv] = useState<TMDBMediaItem[]>([]);
+
+  // English Specialized Feeds
+  const [highestGrossingEnglish, setHighestGrossingEnglish] = useState<TMDBMediaItem[]>([]);
+  const [popularEnglishMovies, setPopularEnglishMovies] = useState<TMDBMediaItem[]>([]);
+  const [popularEnglishTv, setPopularEnglishTv] = useState<TMDBMediaItem[]>([]);
+
   const [tailoredRows, setTailoredRows] = useState<TailoredGenreRow[]>([]);
   const [isDiscoveryLoading, setIsDiscoveryLoading] = useState(true);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
@@ -45,10 +67,7 @@ export default function HomePage() {
     .filter((item) => item.status === 'watching')
     .slice(0, 10);
 
-  // 2. Personal Library: Strictly actual recent activity
-  const recentActivityItems = [...libraryItems]
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-    .slice(0, 10);
+
 
   // Load preferences and discovery feeds
   useEffect(() => {
@@ -63,12 +82,33 @@ export default function HomePage() {
         const prefs = await getContentPreferences();
         if (isMounted) setPreferences(prefs);
 
-        // 2. Load standard trending and popular feeds
-        const [tMovies, tTv, pMovies, pTv] = await Promise.all([
+        // 2. Fetch all feeds concurrently with local caching
+        const [
+          tMovies,
+          tTv,
+          pMovies,
+          pTv,
+          hiTrendM,
+          hiPopM,
+          hiGrossM,
+          hiTrendT,
+          hiPopT,
+          enGrossM,
+          enPopM,
+          enPopT,
+        ] = await Promise.all([
           tmdbService.getTrending('movie', 'week').catch(() => []),
           tmdbService.getTrending('tv', 'week').catch(() => []),
           tmdbService.getPopular('movie').catch(() => []),
           tmdbService.getPopular('tv').catch(() => []),
+          tmdbService.getTrendingHindi('movie').catch(() => []),
+          tmdbService.getMostPopularHindi('movie').catch(() => []),
+          tmdbService.getHighestGrossing('hi').catch(() => []),
+          tmdbService.getTrendingHindi('tv').catch(() => []),
+          tmdbService.getMostPopularHindi('tv').catch(() => []),
+          tmdbService.getHighestGrossing('en').catch(() => []),
+          tmdbService.getMostPopularEnglish('movie').catch(() => []),
+          tmdbService.getMostPopularEnglish('tv').catch(() => []),
         ]);
 
         if (isMounted) {
@@ -76,14 +116,24 @@ export default function HomePage() {
           setTrendingTv(tTv as TMDBMediaItem[]);
           setPopularMovies(pMovies as TMDBMediaItem[]);
           setPopularTv(pTv as TMDBMediaItem[]);
+
+          setTrendingHindiMovies(hiTrendM as TMDBMediaItem[]);
+          setPopularHindiMovies(hiPopM as TMDBMediaItem[]);
+          setHighestGrossingHindi(hiGrossM as TMDBMediaItem[]);
+          setTrendingHindiTv(hiTrendT as TMDBMediaItem[]);
+          setPopularHindiTv(hiPopT as TMDBMediaItem[]);
+
+          setHighestGrossingEnglish(enGrossM as TMDBMediaItem[]);
+          setPopularEnglishMovies(enPopM as TMDBMediaItem[]);
+          setPopularEnglishTv(enPopT as TMDBMediaItem[]);
         }
 
         // 3. Load Tailored Genre Rows based on favoriteGenres & mediaFocus
         const genresToLoad = (prefs.favoriteGenres || []).slice(0, 3);
         const rows: TailoredGenreRow[] = [];
 
-        // Determine quality thresholds
-        const minVoteAvg = prefs.qualityFilter === 'high_acclaim' ? 7.5 : prefs.qualityFilter === 'hidden_gems' ? 7.8 : undefined;
+        const minVoteAvg =
+          prefs.qualityFilter === 'high_acclaim' ? 7.5 : prefs.qualityFilter === 'hidden_gems' ? 7.8 : undefined;
         const minVoteCount = prefs.qualityFilter === 'hidden_gems' ? 50 : 80;
         const yearGte = prefs.releaseWindow === 'recent' ? 2020 : undefined;
         const yearLte = prefs.releaseWindow === 'classics' ? 2005 : undefined;
@@ -93,7 +143,6 @@ export default function HomePage() {
           const genreDef = POPULAR_GENRES.find((g) => g.id === gId);
           if (!genreDef) continue;
 
-          // Determine media type for this row based on user mediaFocus
           let rowMediaType: MediaType = 'movie';
           let withGenreId = genreDef.movieGenreId;
 
@@ -104,7 +153,6 @@ export default function HomePage() {
             rowMediaType = 'movie';
             withGenreId = genreDef.movieGenreId;
           } else {
-            // Balanced: alternate between movies and tv
             if (i % 2 === 1) {
               rowMediaType = 'tv';
               withGenreId = genreDef.tvGenreId;
@@ -155,178 +203,143 @@ export default function HomePage() {
     };
   }, []);
 
-  // Smart Hero Items: Top trending titles matching user preference or top trending
+  // Smart Hero Items: dynamically adjusted based on activeHub and user preferences
   const heroItems = useMemo(() => {
-    const favoriteGenreSet = new Set(preferences.favoriteGenres || []);
-
-    const matchesTaste = (item: TMDBMediaItem) => {
-      if (!item.backdrop_path) return false;
-      if (favoriteGenreSet.size === 0) return true;
-      return item.genre_ids?.some((g) => favoriteGenreSet.has(g));
-    };
-
     let pool: TMDBMediaItem[] = [];
-    if (preferences.mediaFocus === 'tv') {
-      pool = [...trendingTv, ...trendingMovies];
-    } else if (preferences.mediaFocus === 'movies') {
-      pool = [...trendingMovies, ...trendingTv];
+
+    if (activeHub === 'hindi') {
+      pool = [...trendingHindiMovies, ...trendingHindiTv, ...popularHindiMovies];
+    } else if (activeHub === 'english') {
+      pool = [...trendingMovies, ...highestGrossingEnglish, ...trendingTv];
+    } else if (activeHub === 'tv') {
+      pool = [...trendingTv, ...popularHindiTv, ...popularEnglishTv];
     } else {
-      // Interleave movies & tv for balanced mix
-      const maxLen = Math.max(trendingMovies.length, trendingTv.length);
-      for (let i = 0; i < maxLen; i++) {
+      // Balanced mix
+      const mixLen = Math.max(trendingMovies.length, trendingHindiMovies.length, trendingTv.length);
+      for (let i = 0; i < mixLen; i++) {
         if (trendingMovies[i]) pool.push(trendingMovies[i]);
+        if (trendingHindiMovies[i]) pool.push(trendingHindiMovies[i]);
         if (trendingTv[i]) pool.push(trendingTv[i]);
       }
     }
 
-    // Filter items with backdrops, prioritizing taste matches
-    const tasteMatches = pool.filter((it) => it.backdrop_path && matchesTaste(it));
-    const otherMatches = pool.filter((it) => it.backdrop_path && !matchesTaste(it));
-    const combined = [...tasteMatches, ...otherMatches];
-
-    // Take top 6 unique items
     const seen = new Set<number>();
     const unique: TMDBMediaItem[] = [];
-    for (const it of combined) {
-      if (!seen.has(it.id)) {
+    for (const it of pool) {
+      if (it.backdrop_path && !seen.has(it.id)) {
         seen.add(it.id);
         unique.push(it);
         if (unique.length >= 6) break;
       }
     }
 
-    return unique;
-  }, [trendingMovies, trendingTv, preferences]);
+    return unique.length > 0 ? unique : trendingMovies.slice(0, 5);
+  }, [
+    activeHub,
+    trendingMovies,
+    trendingHindiMovies,
+    trendingTv,
+    popularHindiMovies,
+    highestGrossingEnglish,
+    popularHindiTv,
+    popularEnglishTv,
+  ]);
 
-  // Names of selected favorite genres for display in taste badge
   const favoriteGenreNames = useMemo(() => {
     return (preferences.favoriteGenres || [])
       .map((id) => POPULAR_GENRES.find((g) => g.id === id)?.name)
       .filter(Boolean) as string[];
   }, [preferences.favoriteGenres]);
 
-  // Standard row builders
-  const trendingMoviesRow = (
+  // Helper row mapper
+  const createRow = (
+    key: string,
+    title: string,
+    subtitle: string,
+    items: TMDBMediaItem[],
+    mediaType: MediaType
+  ) => (
     <MediaRow
-      key="trending-movies"
-      title="Trending Movies"
-      subtitle="The most popular motion pictures this week"
-      items={trendingMovies.map((m) => ({
+      key={key}
+      title={title}
+      subtitle={subtitle}
+      items={items.map((m) => ({
         id: m.id,
-        title: m.title || 'Untitled',
-        mediaType: 'movie',
+        title: m.title || m.name || 'Untitled',
+        mediaType,
         posterPath: m.poster_path,
-        releaseDate: m.release_date,
+        releaseDate: m.release_date || m.first_air_date,
         voteAverage: m.vote_average,
       }))}
     />
   );
-
-  const trendingTvRow = (
-    <MediaRow
-      key="trending-tv"
-      title="Trending Series"
-      subtitle="Binge-worthy shows and series trending now"
-      items={trendingTv.map((s) => ({
-        id: s.id,
-        title: s.name || 'Untitled',
-        mediaType: 'tv',
-        posterPath: s.poster_path,
-        releaseDate: s.first_air_date,
-        voteAverage: s.vote_average,
-      }))}
-    />
-  );
-
-  const popularMoviesRow = (
-    <MediaRow
-      key="popular-movies"
-      title="Popular Movies"
-      subtitle="Highest-rated and widely watched films"
-      items={popularMovies.map((m) => ({
-        id: m.id,
-        title: m.title || 'Untitled',
-        mediaType: 'movie',
-        posterPath: m.poster_path,
-        releaseDate: m.release_date,
-        voteAverage: m.vote_average,
-      }))}
-    />
-  );
-
-  const popularTvRow = (
-    <MediaRow
-      key="popular-tv"
-      title="Popular Series"
-      subtitle="Acclaimed television and streaming productions"
-      items={popularTv.map((s) => ({
-        id: s.id,
-        title: s.name || 'Untitled',
-        mediaType: 'tv',
-        posterPath: s.poster_path,
-        releaseDate: s.first_air_date,
-        voteAverage: s.vote_average,
-      }))}
-    />
-  );
-
-  // Smartly rearrange standard rows based on user mediaFocus
-  const arrangedStandardRows = useMemo(() => {
-    if (preferences.mediaFocus === 'tv') {
-      return [trendingTvRow, popularTvRow, trendingMoviesRow, popularMoviesRow];
-    }
-    if (preferences.mediaFocus === 'movies') {
-      return [trendingMoviesRow, popularMoviesRow, trendingTvRow, popularTvRow];
-    }
-    // Balanced
-    return [trendingMoviesRow, trendingTvRow, popularMoviesRow, popularTvRow];
-  }, [preferences.mediaFocus, trendingMovies, trendingTv, popularMovies, popularTv]);
 
   return (
     <div className="space-y-6">
       {/* Hero Banner (Auto-rotating top trending titles) */}
       <HeroBanner items={heroItems} />
 
-      {/* Smart Arrangement Taste Indicator Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#11131c]/80 border border-white/5 text-xs shadow-lg backdrop-blur-sm">
-        <div className="flex items-center gap-2.5 text-slate-300">
-          <div className="p-1.5 rounded-lg bg-red-600/15 text-red-500 shrink-0">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-slate-400 font-medium">Smart Discover: </span>
-            <strong className="text-white capitalize">
-              {preferences.mediaFocus === 'tv'
-                ? 'TV Series Focus'
-                : preferences.mediaFocus === 'movies'
-                ? 'Movies Focus'
-                : 'Balanced Mix'}
-            </strong>
-            {favoriteGenreNames.length > 0 && (
-              <span className="hidden sm:inline">
-                {' '}
-                • Curated for:{' '}
-                <span className="text-slate-200 font-semibold">{favoriteGenreNames.join(', ')}</span>
-              </span>
+      {/* Discovery Hub Selector: All, Bollywood & Hindi, Hollywood & English, TV Series Hub */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-3xl bg-[#11131c]/90 border border-white/5 shadow-xl backdrop-blur-md">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+          <button
+            onClick={() => setActiveHub('all')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
+              activeHub === 'all'
+                ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                : 'bg-[#161825] text-slate-400 hover:text-white border border-white/5'
             )}
-            {preferences.qualityFilter === 'high_acclaim' && (
-              <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-mono text-[10px] font-bold">
-                ★ 7.5+ Acclaimed
-              </span>
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>All Discoveries</span>
+          </button>
+
+          <button
+            onClick={() => setActiveHub('hindi')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
+              activeHub === 'hindi'
+                ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-600/30'
+                : 'bg-[#161825] text-slate-400 hover:text-white border border-white/5'
             )}
-            {preferences.qualityFilter === 'hidden_gems' && (
-              <span className="ml-1 px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 font-mono text-[10px] font-bold">
-                ✦ Hidden Gems
-              </span>
+          >
+            <span className="text-sm">🇮🇳</span>
+            <span>Bollywood & Hindi</span>
+          </button>
+
+          <button
+            onClick={() => setActiveHub('english')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
+              activeHub === 'english'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                : 'bg-[#161825] text-slate-400 hover:text-white border border-white/5'
             )}
-          </div>
+          >
+            <Film className="w-3.5 h-3.5" />
+            <span>Hollywood & English</span>
+          </button>
+
+          <button
+            onClick={() => setActiveHub('tv')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
+              activeHub === 'tv'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                : 'bg-[#161825] text-slate-400 hover:text-white border border-white/5'
+            )}
+          >
+            <Tv className="w-3.5 h-3.5" />
+            <span>TV & Series Hub</span>
+          </button>
         </div>
 
         <Link
           href="/settings"
-          className="text-red-400 hover:text-red-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ml-auto"
+          className="text-slate-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 self-end sm:self-auto"
         >
-          <span>Adjust Preferences</span>
+          <span>Preferences</span>
           <SlidersHorizontal className="w-3.5 h-3.5" />
         </Link>
       </div>
@@ -362,28 +375,7 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* SECTION 2: My Recent Activity (Strictly Real Personal Data) */}
-      {recentActivityItems.length > 0 && (
-        <section className="mb-10">
-          <div className="flex items-center gap-2 mb-4">
-            <History className="w-5 h-5 text-purple-400" />
-            <h2 className="text-xl font-bold tracking-tight text-white">My Recent Activity</h2>
-            <span className="text-xs font-mono text-slate-400 ml-1">({recentActivityItems.length})</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {recentActivityItems.map((item) => (
-              <MediaCard
-                key={item.id}
-                id={item.tmdb_id}
-                title={item.title}
-                mediaType={item.media_type}
-                posterPath={item.poster_path}
-                releaseDate={item.release_date}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+
 
       {/* Discovery Error Notice (if offline and no cache yet) */}
       {discoveryError && (
@@ -395,28 +387,270 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* SECTION 3: TAILORED GENRE ROWS (Generated from user's favoriteGenres & mediaFocus) */}
-      {tailoredRows.map((row) => (
-        <MediaRow
-          key={`tailored-${row.genreId}-${row.mediaType}`}
-          title={`Top ${row.genreName} for You`}
-          subtitle={`Curated ${row.mediaType === 'tv' ? 'shows & series' : 'films'} tailored to your taste`}
-          items={row.items.map((item) => ({
-            id: item.id,
-            title: item.title || item.name || 'Untitled',
-            mediaType: row.mediaType,
-            posterPath: item.poster_path,
-            releaseDate: item.release_date || item.first_air_date,
-            voteAverage: item.vote_average,
-          }))}
-        />
-      ))}
+      {/* SECTION 3: TAILORED GENRE ROWS */}
+      {activeHub === 'all' &&
+        tailoredRows.map((row) =>
+          createRow(
+            `tailored-${row.genreId}-${row.mediaType}`,
+            `Top ${row.genreName} for You`,
+            `Curated ${row.mediaType === 'tv' ? 'shows & series' : 'films'} tailored to your taste`,
+            row.items,
+            row.mediaType
+          )
+        )}
 
-      {/* SECTION 4+: SMARTLY ARRANGED STANDARD FEEDS (Media Focus Order) */}
-      {arrangedStandardRows}
+      {/* SECTION 4: FEEDS BY SELECTED HUB */}
+
+      {/* --- HUB A: BOLLYWOOD & HINDI ONLY --- */}
+      {activeHub === 'hindi' && (
+        <>
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-amber-950/40 via-orange-950/20 to-transparent border border-amber-500/20 mb-6">
+            <div className="flex items-center gap-3 mb-1">
+              <span className="text-2xl">🇮🇳</span>
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                Bollywood & Hindi Cinema Hub
+              </h2>
+            </div>
+            <p className="text-xs text-amber-300/80">
+              Theatrical blockbusters, historic box office record breakers, universal classics, and acclaimed streaming series.
+            </p>
+          </div>
+
+          {createRow(
+            'hi-trending-movies',
+            '🔥 Trending Hindi Cinema',
+            'Latest Bollywood releases & theatrical sensations trending right now',
+            trendingHindiMovies,
+            'movie'
+          )}
+
+          {createRow(
+            'hi-highest-grossing',
+            '💰 Highest Grossing Bollywood Hits',
+            'All-time biggest box office earners (Dangal, Jawan, Bajrangi Bhaijaan, PK)',
+            highestGrossingHindi,
+            'movie'
+          )}
+
+          {createRow(
+            'hi-most-popular',
+            '🏆 All-Time Popular Bollywood Classics',
+            'Universally beloved masterpieces (3 Idiots, DDLJ, Taare Zameen Par, Lagaan)',
+            popularHindiMovies,
+            'movie'
+          )}
+
+          {createRow(
+            'hi-acclaimed-series',
+            '⭐ Acclaimed Hindi Web Series',
+            'Critically celebrated Indian thriller, crime, and drama series (Mirzapur, Sacred Games, Scam 1992)',
+            popularHindiTv,
+            'tv'
+          )}
+
+          {createRow(
+            'hi-trending-series',
+            '📺 Trending Hindi Shows',
+            'Popular streaming shows and television productions in India',
+            trendingHindiTv,
+            'tv'
+          )}
+        </>
+      )}
+
+      {/* --- HUB B: HOLLYWOOD & ENGLISH ONLY --- */}
+      {activeHub === 'english' && (
+        <>
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-950/40 via-indigo-950/20 to-transparent border border-blue-500/20 mb-6">
+            <div className="flex items-center gap-3 mb-1">
+              <Film className="w-6 h-6 text-blue-400" />
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                Hollywood & English Cinema Hub
+              </h2>
+            </div>
+            <p className="text-xs text-blue-300/80">
+              Worldwide blockbuster spectacles, all-time box office champions, and top-rated television productions.
+            </p>
+          </div>
+
+          {createRow(
+            'en-trending-movies',
+            'Trending Movies',
+            'The most popular motion pictures this week worldwide',
+            trendingMovies,
+            'movie'
+          )}
+
+          {createRow(
+            'en-highest-grossing',
+            '💎 Highest Grossing Box Office Blockbusters',
+            'All-time worldwide box office record breakers (Avatar, Avengers: Endgame, Titanic)',
+            highestGrossingEnglish,
+            'movie'
+          )}
+
+          {createRow(
+            'en-most-popular',
+            '🍿 All-Time Popular English Movies',
+            'Widely watched, highly rated cinematic legends (The Dark Knight, Inception, Interstellar)',
+            popularEnglishMovies,
+            'movie'
+          )}
+
+          {createRow(
+            'en-trending-series',
+            'Trending TV Series',
+            'Binge-worthy shows and series trending now',
+            trendingTv,
+            'tv'
+          )}
+
+          {createRow(
+            'en-top-series',
+            '🏆 Top Rated English TV Series',
+            'Universally acclaimed television masterpieces (Breaking Bad, Game of Thrones, Succession)',
+            popularEnglishTv,
+            'tv'
+          )}
+        </>
+      )}
+
+      {/* --- HUB C: TV SERIES HUB ONLY --- */}
+      {activeHub === 'tv' && (
+        <>
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-purple-950/40 via-violet-950/20 to-transparent border border-purple-500/20 mb-6">
+            <div className="flex items-center gap-3 mb-1">
+              <Tv className="w-6 h-6 text-purple-400" />
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                Complete TV & Web Series Hub
+              </h2>
+            </div>
+            <p className="text-xs text-purple-300/80">
+              Explore global television epics, Hindi crime thrillers, and acclaimed streaming seasons.
+            </p>
+          </div>
+
+          {createRow(
+            'tv-trending-global',
+            'Trending Series Worldwide',
+            'Sensational series and television productions trending this week',
+            trendingTv,
+            'tv'
+          )}
+
+          {createRow(
+            'tv-hindi-acclaimed',
+            '⭐ Acclaimed Hindi Web Series',
+            'Critically celebrated Indian thriller, crime, and drama series (Mirzapur, Sacred Games, Scam 1992)',
+            popularHindiTv,
+            'tv'
+          )}
+
+          {createRow(
+            'tv-english-top',
+            '🏆 Top Rated English TV Series',
+            'All-time acclaimed television masterpieces (Breaking Bad, Game of Thrones, The Last of Us)',
+            popularEnglishTv,
+            'tv'
+          )}
+
+          {createRow(
+            'tv-hindi-trending',
+            '📺 Trending Indian Shows',
+            'Popular streaming web series in India right now',
+            trendingHindiTv,
+            'tv'
+          )}
+
+          {createRow(
+            'tv-popular-global',
+            'Popular Series',
+            'Widely watched and streaming television shows',
+            popularTv,
+            'tv'
+          )}
+        </>
+      )}
+
+      {/* --- HUB D: ALL DISCOVERIES (BALANCED RICH FEED) --- */}
+      {activeHub === 'all' && (
+        <>
+          {createRow(
+            'all-trending-movies',
+            'Trending Movies',
+            'The most popular motion pictures this week worldwide',
+            trendingMovies,
+            'movie'
+          )}
+
+          {createRow(
+            'all-trending-hindi-movies',
+            '🔥 Trending Hindi Cinema',
+            'Latest Bollywood and Hindi theatrical & streaming releases',
+            trendingHindiMovies,
+            'movie'
+          )}
+
+          {createRow(
+            'all-trending-tv',
+            'Trending Series',
+            'Binge-worthy shows and series trending now',
+            trendingTv,
+            'tv'
+          )}
+
+          {createRow(
+            'all-acclaimed-hindi-series',
+            '⭐ Acclaimed Hindi Web Series',
+            'Critically celebrated Indian thriller, crime, and drama series (Mirzapur, Sacred Games, Scam 1992)',
+            popularHindiTv,
+            'tv'
+          )}
+
+          {createRow(
+            'all-grossing-hindi',
+            '💰 Highest Grossing Bollywood Hits',
+            'Record-shattering box office blockbusters in Hindi cinema (Dangal, Jawan, Bajrangi Bhaijaan)',
+            highestGrossingHindi,
+            'movie'
+          )}
+
+          {createRow(
+            'all-grossing-english',
+            '💎 Highest Grossing Box Office Blockbusters',
+            'All-time biggest worldwide box office hits (Avatar, Avengers: Endgame, Titanic)',
+            highestGrossingEnglish,
+            'movie'
+          )}
+
+          {createRow(
+            'all-popular-hindi-movies',
+            '🏆 All-Time Popular Bollywood Classics',
+            'Universally beloved masterpieces (3 Idiots, DDLJ, Taare Zameen Par, Lagaan)',
+            popularHindiMovies,
+            'movie'
+          )}
+
+          {createRow(
+            'all-popular-english-movies',
+            '🍿 All-Time Popular Movies',
+            'Widely watched, highly rated cinematic legends (The Dark Knight, Inception, Interstellar)',
+            popularEnglishMovies,
+            'movie'
+          )}
+
+          {createRow(
+            'all-popular-english-tv',
+            '🏆 Top Rated TV Series',
+            'Universally acclaimed television and streaming productions (Breaking Bad, Game of Thrones)',
+            popularEnglishTv,
+            'tv'
+          )}
+        </>
+      )}
 
       {/* SECTION 5: Recommended / Taste Architecture Banner */}
-      <section className="p-8 rounded-2xl bg-gradient-to-r from-red-950/20 via-[#10121a] to-[#12141f] border border-white/5 text-center">
+      <section className="p-8 rounded-3xl bg-gradient-to-r from-red-950/20 via-[#10121a] to-[#12141f] border border-white/5 text-center mt-12">
         <Sparkles className="w-8 h-8 text-red-500 mx-auto mb-3" />
         <h3 className="text-base font-bold text-white mb-1">Tailored Discovery Active</h3>
         <p className="text-xs text-slate-400 max-w-md mx-auto">

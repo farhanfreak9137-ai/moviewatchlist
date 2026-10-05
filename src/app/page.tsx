@@ -155,31 +155,47 @@ export default function HomePage() {
     };
   }, []);
 
-  // Smart Hero Item: Matches preferred media focus and favorite genres
-  const heroItem = useMemo(() => {
+  // Smart Hero Items: Top trending titles matching user preference or top trending
+  const heroItems = useMemo(() => {
     const favoriteGenreSet = new Set(preferences.favoriteGenres || []);
 
-    // Helper to test if item matches user taste
     const matchesTaste = (item: TMDBMediaItem) => {
       if (!item.backdrop_path) return false;
       if (favoriteGenreSet.size === 0) return true;
       return item.genre_ids?.some((g) => favoriteGenreSet.has(g));
     };
 
+    let pool: TMDBMediaItem[] = [];
     if (preferences.mediaFocus === 'tv') {
-      const tvMatch = trendingTv.find(matchesTaste) || trendingTv.find((t) => t.backdrop_path) || trendingMovies[0];
-      return tvMatch || null;
+      pool = [...trendingTv, ...trendingMovies];
+    } else if (preferences.mediaFocus === 'movies') {
+      pool = [...trendingMovies, ...trendingTv];
+    } else {
+      // Interleave movies & tv for balanced mix
+      const maxLen = Math.max(trendingMovies.length, trendingTv.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (trendingMovies[i]) pool.push(trendingMovies[i]);
+        if (trendingTv[i]) pool.push(trendingTv[i]);
+      }
     }
 
-    if (preferences.mediaFocus === 'movies') {
-      const movieMatch = trendingMovies.find(matchesTaste) || trendingMovies.find((m) => m.backdrop_path) || trendingTv[0];
-      return movieMatch || null;
+    // Filter items with backdrops, prioritizing taste matches
+    const tasteMatches = pool.filter((it) => it.backdrop_path && matchesTaste(it));
+    const otherMatches = pool.filter((it) => it.backdrop_path && !matchesTaste(it));
+    const combined = [...tasteMatches, ...otherMatches];
+
+    // Take top 6 unique items
+    const seen = new Set<number>();
+    const unique: TMDBMediaItem[] = [];
+    for (const it of combined) {
+      if (!seen.has(it.id)) {
+        seen.add(it.id);
+        unique.push(it);
+        if (unique.length >= 6) break;
+      }
     }
 
-    // Balanced focus: pick best match across both
-    const all = [...trendingMovies, ...trendingTv];
-    const match = all.find(matchesTaste);
-    return match || trendingMovies[0] || trendingTv[0] || null;
+    return unique;
   }, [trendingMovies, trendingTv, preferences]);
 
   // Names of selected favorite genres for display in taste badge
@@ -268,8 +284,8 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
-      {/* Hero Banner (Smartly Spotlighted) */}
-      <HeroBanner item={heroItem} />
+      {/* Hero Banner (Auto-rotating top trending titles) */}
+      <HeroBanner items={heroItems} />
 
       {/* Smart Arrangement Taste Indicator Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#11131c]/80 border border-white/5 text-xs shadow-lg backdrop-blur-sm">

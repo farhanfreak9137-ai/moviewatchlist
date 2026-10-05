@@ -1,22 +1,46 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useLibrary } from '@/hooks/useLibrary';
 import { TMDBMediaItem, getImageUrl, tmdbService } from '@/lib/metadata/tmdb';
 import { StatusBadge } from './StatusBadge';
-import { Plus, Check, Play, Info, Sparkles, Film, Loader2 } from 'lucide-react';
+import { Plus, Check, Info, Sparkles, Film, Loader2, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
 
 interface HeroBannerProps {
+  items?: TMDBMediaItem[] | null;
+  // Backward compatibility in case single item is passed
   item?: TMDBMediaItem | null;
 }
 
-export function HeroBanner({ item }: HeroBannerProps) {
+export function HeroBanner({ items, item }: HeroBannerProps) {
   const { getItemByTmdbId, addToLibrary } = useLibrary();
   const [isAdding, setIsAdding] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const touchStartX = useRef<number | null>(null);
 
-  if (!item) {
-    // Elegant fallback banner when offline or loading initial metadata
+  // Normalize to list of items
+  const bannerItems: TMDBMediaItem[] = React.useMemo(() => {
+    if (items && items.length > 0) return items.slice(0, 7);
+    if (item) return [item];
+    return [];
+  }, [items, item]);
+
+  // Auto-rotation every 6 seconds unless user is hovering/interacting
+  useEffect(() => {
+    if (bannerItems.length <= 1 || isPaused) return;
+
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % bannerItems.length);
+    }, 6000);
+
+    return () => clearInterval(timer);
+  }, [bannerItems.length, isPaused]);
+
+  if (bannerItems.length === 0) {
+    // Fallback banner when offline or loading initial metadata
     return (
       <div className="relative w-full rounded-2xl overflow-hidden bg-gradient-to-r from-red-950/40 via-[#12141f] to-[#090a10] border border-white/10 p-8 sm:p-12 mb-10 shadow-2xl">
         <div className="max-w-2xl">
@@ -50,11 +74,41 @@ export function HeroBanner({ item }: HeroBannerProps) {
     );
   }
 
-  const mediaType = item.media_type || (item.name ? 'tv' : 'movie');
-  const title = item.title || item.name || 'Featured Title';
-  const libraryItem = getItemByTmdbId(item.id, mediaType);
+  const activeItem = bannerItems[currentIndex] || bannerItems[0];
+  const mediaType = activeItem.media_type || (activeItem.name ? 'tv' : 'movie');
+  const title = activeItem.title || activeItem.name || 'Featured Title';
+  const libraryItem = getItemByTmdbId(activeItem.id, mediaType);
   const isInLibrary = !!libraryItem;
-  const backdropUrl = getImageUrl(item.backdrop_path, 'original') || getImageUrl(item.poster_path, 'original');
+  const backdropUrl = getImageUrl(activeItem.backdrop_path, 'original') || getImageUrl(activeItem.poster_path, 'original');
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev - 1 + bannerItems.length) % bannerItems.length);
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev + 1) % bannerItems.length);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const diff = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) {
+        // Swiped right -> prev
+        setCurrentIndex((prev) => (prev - 1 + bannerItems.length) % bannerItems.length);
+      } else {
+        // Swiped left -> next
+        setCurrentIndex((prev) => (prev + 1) % bannerItems.length);
+      }
+    }
+    touchStartX.current = null;
+  };
 
   const handleQuickAdd = async () => {
     if (isInLibrary || isAdding) return;
@@ -62,8 +116,8 @@ export function HeroBanner({ item }: HeroBannerProps) {
       setIsAdding(true);
       const details =
         mediaType === 'movie'
-          ? await tmdbService.getMovieDetails(item.id)
-          : await tmdbService.getSeriesDetails(item.id);
+          ? await tmdbService.getMovieDetails(activeItem.id)
+          : await tmdbService.getSeriesDetails(activeItem.id);
       await addToLibrary(details, mediaType, 'planned');
     } catch (err) {
       console.error('Failed to add hero item to library:', err);
@@ -73,47 +127,88 @@ export function HeroBanner({ item }: HeroBannerProps) {
   };
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden mb-10 border border-white/10 bg-[#0e1017] shadow-2xl min-h-[360px] sm:min-h-[440px] flex items-end">
-      {/* Cinematic Background Backdrop */}
-      {backdropUrl && (
-        <div className="absolute inset-0 z-0">
-          <img
-            src={backdropUrl}
-            alt={title}
-            className="w-full h-full object-cover object-center opacity-40 sm:opacity-50"
-          />
-          {/* Gradients to blend smoothly */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#08090d] via-[#08090d]/60 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#08090d] via-[#08090d]/80 to-transparent" />
-        </div>
+    <div
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className="relative w-full rounded-2xl overflow-hidden mb-10 border border-white/10 bg-[#0e1017] shadow-2xl min-h-[380px] sm:min-h-[460px] flex items-end group"
+    >
+      {/* Cinematic Background Backdrops with smooth fade */}
+      {bannerItems.map((item, idx) => {
+        const url = getImageUrl(item.backdrop_path, 'original') || getImageUrl(item.poster_path, 'original');
+        if (!url) return null;
+        return (
+          <div
+            key={item.id}
+            className={cn(
+              'absolute inset-0 z-0 transition-opacity duration-700 ease-in-out',
+              idx === currentIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            )}
+          >
+            <img
+              src={url}
+              alt={item.title || item.name || 'Hero backdrop'}
+              className="w-full h-full object-cover object-center scale-105 transition-transform duration-1000"
+            />
+            {/* Gradients to blend smoothly */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#08090d] via-[#08090d]/60 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#08090d] via-[#08090d]/80 to-transparent" />
+          </div>
+        );
+      })}
+
+      {/* Navigation Arrows for desktop/touch */}
+      {bannerItems.length > 1 && (
+        <>
+          <button
+            onClick={handlePrev}
+            aria-label="Previous featured title"
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white backdrop-blur-md border border-white/10 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer shadow-lg hidden sm:flex items-center justify-center"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            onClick={handleNext}
+            aria-label="Next featured title"
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white backdrop-blur-md border border-white/10 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer shadow-lg hidden sm:flex items-center justify-center"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </>
       )}
 
       {/* Content */}
       <div className="relative z-10 p-4 sm:p-10 max-w-3xl w-full">
         <div className="flex items-center gap-2 mb-2.5">
-          <span className="px-2.5 py-0.5 rounded-md bg-red-600/90 text-white text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">
+          <span className="px-2.5 py-0.5 rounded-md bg-red-600/90 text-white text-[10px] sm:text-[11px] font-bold uppercase tracking-wider shadow-sm">
             Trending Today
           </span>
           <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md border border-white/10 text-slate-300 text-[10px] sm:text-[11px] font-medium uppercase tracking-wider">
             {mediaType === 'movie' ? 'Movie' : 'Series'}
           </span>
+          {activeItem.vote_average > 0 && (
+            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] sm:text-[11px] font-mono font-bold">
+              ★ {activeItem.vote_average.toFixed(1)}
+            </span>
+          )}
           {isInLibrary && (
             <StatusBadge status={libraryItem.status} size="sm" />
           )}
         </div>
 
-        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight mb-2.5 line-clamp-2">
+        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight mb-2.5 line-clamp-2 drop-shadow-md">
           {title}
         </h1>
 
-        <p className="text-slate-300 text-xs sm:text-sm line-clamp-2 sm:line-clamp-3 leading-relaxed mb-5 max-w-2xl">
-          {item.overview}
+        <p className="text-slate-300 text-xs sm:text-sm line-clamp-2 sm:line-clamp-3 leading-relaxed mb-5 max-w-2xl drop-shadow-sm">
+          {activeItem.overview}
         </p>
 
-        <div className="flex flex-row items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-row items-center gap-2.5 w-full sm:w-auto mb-3">
           <Link
-            href={`/title?mediaType=${mediaType}&id=${item.id}`}
-            className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-slate-200 text-black font-semibold text-xs sm:text-sm transition-all shadow-xl flex items-center gap-2 cursor-pointer whitespace-nowrap"
+            href={`/title?mediaType=${mediaType}&id=${activeItem.id}`}
+            className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-slate-200 text-black font-semibold text-xs sm:text-sm transition-all shadow-xl flex items-center gap-2 cursor-pointer whitespace-nowrap active:scale-95"
           >
             <Info className="w-4 h-4 shrink-0" />
             <span>View Details</span>
@@ -121,8 +216,8 @@ export function HeroBanner({ item }: HeroBannerProps) {
 
           {isInLibrary ? (
             <Link
-              href={`/title?mediaType=${mediaType}&id=${item.id}`}
-              className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold text-xs sm:text-sm flex items-center gap-2 backdrop-blur-md whitespace-nowrap"
+              href={`/title?mediaType=${mediaType}&id=${activeItem.id}`}
+              className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold text-xs sm:text-sm flex items-center gap-2 backdrop-blur-md whitespace-nowrap active:scale-95"
             >
               <Check className="w-4 h-4 stroke-[3] shrink-0" />
               <span>In Library ({libraryItem.status})</span>
@@ -131,7 +226,7 @@ export function HeroBanner({ item }: HeroBannerProps) {
             <button
               onClick={handleQuickAdd}
               disabled={isAdding}
-              className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-red-900/30 flex items-center gap-2 cursor-pointer whitespace-nowrap"
+              className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-red-900/30 flex items-center gap-2 cursor-pointer whitespace-nowrap active:scale-95"
             >
               {isAdding ? (
                 <Loader2 className="w-4 h-4 animate-spin shrink-0" />
@@ -142,6 +237,25 @@ export function HeroBanner({ item }: HeroBannerProps) {
             </button>
           )}
         </div>
+
+        {/* Carousel Progress Indicators / Dots */}
+        {bannerItems.length > 1 && (
+          <div className="flex items-center gap-1.5 pt-2">
+            {bannerItems.map((it, idx) => (
+              <button
+                key={it.id}
+                onClick={() => setCurrentIndex(idx)}
+                aria-label={`Jump to slide ${idx + 1}: ${it.title || it.name}`}
+                className={cn(
+                  'h-1.5 rounded-full transition-all duration-300 cursor-pointer',
+                  idx === currentIndex
+                    ? 'w-6 bg-red-500'
+                    : 'w-1.5 bg-white/30 hover:bg-white/60'
+                )}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

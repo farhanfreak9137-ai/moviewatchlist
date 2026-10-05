@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { MediaCard } from './MediaCard';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -20,6 +20,22 @@ interface MediaRowProps {
 
 export function MediaRow({ title, subtitle, items, emptyMessage }: MediaRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rowStorageKey = `watchvault_row_scroll_${title.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+  // Restore horizontal scroll position for this specific row
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const savedX = sessionStorage.getItem(rowStorageKey);
+        if (savedX && scrollRef.current) {
+          const x = parseInt(savedX, 10);
+          if (!isNaN(x) && x > 0) {
+            scrollRef.current.scrollLeft = x;
+          }
+        }
+      }
+    } catch {}
+  }, [items, rowStorageKey]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -73,6 +89,11 @@ export function MediaRow({ title, subtitle, items, emptyMessage }: MediaRowProps
       {/* Cards container */}
       <div
         ref={scrollRef}
+        onScroll={() => {
+          if (scrollRef.current && typeof window !== 'undefined') {
+            sessionStorage.setItem(rowStorageKey, scrollRef.current.scrollLeft.toString());
+          }
+        }}
         className="flex gap-4 overflow-x-auto no-scrollbar pb-3 snap-x scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0"
       >
         {items.map((item) => (

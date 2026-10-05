@@ -34,32 +34,89 @@ interface TailoredGenreRow {
 
 type DiscoverHub = 'all' | 'hindi' | 'english' | 'tv';
 
+interface CachedDiscoveryData {
+  preferences: ContentPreferences;
+  activeHub: DiscoverHub;
+  trendingMovies: TMDBMediaItem[];
+  trendingTv: TMDBMediaItem[];
+  popularMovies: TMDBMediaItem[];
+  popularTv: TMDBMediaItem[];
+  trendingHindiMovies: TMDBMediaItem[];
+  popularHindiMovies: TMDBMediaItem[];
+  highestGrossingHindi: TMDBMediaItem[];
+  trendingHindiTv: TMDBMediaItem[];
+  popularHindiTv: TMDBMediaItem[];
+  highestGrossingEnglish: TMDBMediaItem[];
+  popularEnglishMovies: TMDBMediaItem[];
+  popularEnglishTv: TMDBMediaItem[];
+  tailoredRows: TailoredGenreRow[];
+  timestamp: number;
+}
+
+let cachedDiscoveryFeeds: CachedDiscoveryData | null = null;
+
 export default function HomePage() {
   const { libraryItems, isLoading: isLibraryLoading } = useLibrary();
 
-  const [preferences, setPreferences] = useState<ContentPreferences>(DEFAULT_PREFERENCES);
-  const [activeHub, setActiveHub] = useState<DiscoverHub>('all');
+  const [preferences, setPreferences] = useState<ContentPreferences>(
+    () => cachedDiscoveryFeeds?.preferences || DEFAULT_PREFERENCES
+  );
+  const [activeHub, setActiveHub] = useState<DiscoverHub>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('watchvault_discovery_hub');
+      if (saved) return saved as DiscoverHub;
+    }
+    return cachedDiscoveryFeeds?.activeHub || 'all';
+  });
 
   // Standard Feeds
-  const [trendingMovies, setTrendingMovies] = useState<TMDBMediaItem[]>([]);
-  const [trendingTv, setTrendingTv] = useState<TMDBMediaItem[]>([]);
-  const [popularMovies, setPopularMovies] = useState<TMDBMediaItem[]>([]);
-  const [popularTv, setPopularTv] = useState<TMDBMediaItem[]>([]);
+  const [trendingMovies, setTrendingMovies] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.trendingMovies || []
+  );
+  const [trendingTv, setTrendingTv] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.trendingTv || []
+  );
+  const [popularMovies, setPopularMovies] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.popularMovies || []
+  );
+  const [popularTv, setPopularTv] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.popularTv || []
+  );
 
   // Hindi / Bollywood Feeds
-  const [trendingHindiMovies, setTrendingHindiMovies] = useState<TMDBMediaItem[]>([]);
-  const [popularHindiMovies, setPopularHindiMovies] = useState<TMDBMediaItem[]>([]);
-  const [highestGrossingHindi, setHighestGrossingHindi] = useState<TMDBMediaItem[]>([]);
-  const [trendingHindiTv, setTrendingHindiTv] = useState<TMDBMediaItem[]>([]);
-  const [popularHindiTv, setPopularHindiTv] = useState<TMDBMediaItem[]>([]);
+  const [trendingHindiMovies, setTrendingHindiMovies] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.trendingHindiMovies || []
+  );
+  const [popularHindiMovies, setPopularHindiMovies] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.popularHindiMovies || []
+  );
+  const [highestGrossingHindi, setHighestGrossingHindi] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.highestGrossingHindi || []
+  );
+  const [trendingHindiTv, setTrendingHindiTv] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.trendingHindiTv || []
+  );
+  const [popularHindiTv, setPopularHindiTv] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.popularHindiTv || []
+  );
 
   // English Specialized Feeds
-  const [highestGrossingEnglish, setHighestGrossingEnglish] = useState<TMDBMediaItem[]>([]);
-  const [popularEnglishMovies, setPopularEnglishMovies] = useState<TMDBMediaItem[]>([]);
-  const [popularEnglishTv, setPopularEnglishTv] = useState<TMDBMediaItem[]>([]);
+  const [highestGrossingEnglish, setHighestGrossingEnglish] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.highestGrossingEnglish || []
+  );
+  const [popularEnglishMovies, setPopularEnglishMovies] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.popularEnglishMovies || []
+  );
+  const [popularEnglishTv, setPopularEnglishTv] = useState<TMDBMediaItem[]>(
+    () => cachedDiscoveryFeeds?.popularEnglishTv || []
+  );
 
-  const [tailoredRows, setTailoredRows] = useState<TailoredGenreRow[]>([]);
-  const [isDiscoveryLoading, setIsDiscoveryLoading] = useState(true);
+  const [tailoredRows, setTailoredRows] = useState<TailoredGenreRow[]>(
+    () => cachedDiscoveryFeeds?.tailoredRows || []
+  );
+  const [isDiscoveryLoading, setIsDiscoveryLoading] = useState(
+    () => !cachedDiscoveryFeeds || cachedDiscoveryFeeds.trendingMovies.length === 0
+  );
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
 
   // 1. Personal Library: Strictly actual watching items
@@ -67,7 +124,52 @@ export default function HomePage() {
     .filter((item) => item.status === 'watching')
     .slice(0, 10);
 
+  const handleHubChange = (hub: DiscoverHub) => {
+    setActiveHub(hub);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('watchvault_discovery_hub', hub);
+    }
+  };
 
+  // Restore scroll position when returning from title page
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const savedY = sessionStorage.getItem('watchvault_discovery_scroll');
+        if (savedY) {
+          const y = parseInt(savedY, 10);
+          if (!isNaN(y) && y > 0) {
+            window.scrollTo({ top: y, behavior: 'instant' });
+            const t1 = setTimeout(() => window.scrollTo({ top: y, behavior: 'instant' }), 40);
+            const t2 = setTimeout(() => window.scrollTo({ top: y, behavior: 'instant' }), 120);
+            return () => {
+              clearTimeout(t1);
+              clearTimeout(t2);
+            };
+          }
+        }
+      }
+    } catch {}
+  }, [isDiscoveryLoading]);
+
+  // Continuously track scroll position on the Discovery page
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const handleScroll = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (typeof window !== 'undefined' && window.scrollY > 0) {
+          sessionStorage.setItem('watchvault_discovery_scroll', window.scrollY.toString());
+        }
+      }, 60);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   // Load preferences and discovery feeds
   useEffect(() => {
@@ -75,7 +177,9 @@ export default function HomePage() {
 
     async function loadFeedsAndPreferences() {
       try {
-        setIsDiscoveryLoading(true);
+        if (!cachedDiscoveryFeeds) {
+          setIsDiscoveryLoading(true);
+        }
         setDiscoveryError(null);
 
         // 1. Load preferences
@@ -187,6 +291,25 @@ export default function HomePage() {
 
         if (isMounted) {
           setTailoredRows(rows);
+
+          cachedDiscoveryFeeds = {
+            preferences: prefs,
+            activeHub,
+            trendingMovies: tMovies as TMDBMediaItem[],
+            trendingTv: tTv as TMDBMediaItem[],
+            popularMovies: pMovies as TMDBMediaItem[],
+            popularTv: pTv as TMDBMediaItem[],
+            trendingHindiMovies: hiTrendM as TMDBMediaItem[],
+            popularHindiMovies: hiPopM as TMDBMediaItem[],
+            highestGrossingHindi: hiGrossM as TMDBMediaItem[],
+            trendingHindiTv: hiTrendT as TMDBMediaItem[],
+            popularHindiTv: hiPopT as TMDBMediaItem[],
+            highestGrossingEnglish: enGrossM as TMDBMediaItem[],
+            popularEnglishMovies: enPopM as TMDBMediaItem[],
+            popularEnglishTv: enPopT as TMDBMediaItem[],
+            tailoredRows: rows,
+            timestamp: Date.now(),
+          };
         }
       } catch (err: any) {
         if (isMounted) {
@@ -275,7 +398,16 @@ export default function HomePage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      onClickCapture={() => {
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('watchvault_discovery_scroll', window.scrollY.toString());
+          }
+        } catch {}
+      }}
+    >
       {/* Hero Banner (Auto-rotating top trending titles) */}
       <HeroBanner items={heroItems} />
 
@@ -283,7 +415,7 @@ export default function HomePage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-3xl bg-[#11131c]/90 border border-white/5 shadow-xl backdrop-blur-md">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
           <button
-            onClick={() => setActiveHub('all')}
+            onClick={() => handleHubChange('all')}
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
               activeHub === 'all'
@@ -296,7 +428,7 @@ export default function HomePage() {
           </button>
 
           <button
-            onClick={() => setActiveHub('hindi')}
+            onClick={() => handleHubChange('hindi')}
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
               activeHub === 'hindi'
@@ -309,7 +441,7 @@ export default function HomePage() {
           </button>
 
           <button
-            onClick={() => setActiveHub('english')}
+            onClick={() => handleHubChange('english')}
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
               activeHub === 'english'
@@ -322,7 +454,7 @@ export default function HomePage() {
           </button>
 
           <button
-            onClick={() => setActiveHub('tv')}
+            onClick={() => handleHubChange('tv')}
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
               activeHub === 'tv'
@@ -374,8 +506,6 @@ export default function HomePage() {
           </div>
         )}
       </section>
-
-
 
       {/* Discovery Error Notice (if offline and no cache yet) */}
       {discoveryError && (

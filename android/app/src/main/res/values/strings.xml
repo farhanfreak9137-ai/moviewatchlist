@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">WatchVault</string>
+    <string name="title_activity_main">WatchVault</string>
+    <string name="package_name">com.watchvault.app</string>
+    <string name="custom_url_scheme">com.watchvault.app</string>
+</resources>

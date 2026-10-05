@@ -4,7 +4,8 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SyncBadge } from './SyncBadge';
-import { Search, Film, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal } from 'lucide-react';
+import { AppLogo } from './AppLogo';
 
 export function TopHeader() {
   const router = useRouter();
@@ -15,9 +16,7 @@ export function TopHeader() {
         {/* Mobile Brand */}
         <div className="flex items-center gap-3 lg:hidden">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-rose-600 to-red-500 flex items-center justify-center text-white shadow-lg shadow-rose-900/30">
-              <Film className="w-4 h-4" />
-            </div>
+            <AppLogo size={32} className="rounded-lg shadow-lg shadow-rose-900/40" />
             <span className="font-bold text-lg tracking-tight text-white font-sans">
               Watch<span className="text-red-500">Vault</span>
             </span>

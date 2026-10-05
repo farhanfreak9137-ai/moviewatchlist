@@ -112,7 +112,7 @@ export function HeroBanner({ item }: HeroBannerProps) {
 
         <div className="flex flex-row items-center gap-2.5 w-full sm:w-auto">
           <Link
-            href={`/title/${mediaType}/${item.id}`}
+            href={`/title?mediaType=${mediaType}&id=${item.id}`}
             className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-slate-200 text-black font-semibold text-xs sm:text-sm transition-all shadow-xl flex items-center gap-2 cursor-pointer whitespace-nowrap"
           >
             <Info className="w-4 h-4 shrink-0" />
@@ -121,7 +121,7 @@ export function HeroBanner({ item }: HeroBannerProps) {
 
           {isInLibrary ? (
             <Link
-              href={`/title/${mediaType}/${item.id}`}
+              href={`/title?mediaType=${mediaType}&id=${item.id}`}
               className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold text-xs sm:text-sm flex items-center gap-2 backdrop-blur-md whitespace-nowrap"
             >
               <Check className="w-4 h-4 stroke-[3] shrink-0" />

@@ -36,6 +36,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { InstallBanner } from '@/components/layout/InstallBanner';
 import { CsvImporter } from '@/components/settings/CsvImporter';
+import { CloudAccountCard } from '@/components/settings/CloudAccountCard';
 
 export default function SettingsPage() {
   const { syncState, pendingCount, lastSyncedAt, deviceId, deviceName, triggerSync } = useSync();
@@ -137,7 +138,7 @@ export default function SettingsPage() {
 
   // Export Library JSON
   const handleExportLibrary = async () => {
-    const allItems = await db.library_items.where('is_deleted').equals(0).toArray();
+    const allItems = await db.library_items.filter((item) => !item.is_deleted).toArray();
     const allEpisodes = await db.episode_progress.toArray();
 
     const exportData = {
@@ -200,7 +201,7 @@ export default function SettingsPage() {
 
       if (Array.isArray(importFile.episode_progress)) {
         for (const ep of importFile.episode_progress) {
-          await db.episode_progress.put(ep);
+          await db.episode_progress.put({ ...ep, updated_at: now });
         }
       }
 
@@ -212,12 +213,14 @@ export default function SettingsPage() {
     }
   };
 
-  // Clear entire library
+  // Clear entire library (as tombstones, so the deletion also syncs to your other devices)
   const handleConfirmDeleteLibrary = async () => {
     if (deleteConfirmText !== 'DELETE') return;
-    await db.library_items.clear();
-    await db.episode_progress.clear();
-    await db.sync_queue.clear();
+    const now = new Date().toISOString();
+    await db.transaction('rw', db.library_items, db.episode_progress, async () => {
+      await db.library_items.toCollection().modify({ is_deleted: true, deleted_at: now, updated_at: now });
+      await db.episode_progress.toCollection().modify({ is_watched: false, watched_at: undefined, updated_at: now });
+    });
     setShowDeleteModal(false);
     setDeleteConfirmText('');
     showToast('Personal library cleared');
@@ -306,14 +309,16 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        <CloudAccountCard />
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
             <span className="text-xs text-slate-400 block mb-1">Sync Status</span>
-            <span className="text-base font-bold text-white capitalize">{syncState}</span>
+            <span className="text-base font-bold text-white capitalize">{syncState.replace('_', ' ')}</span>
           </div>
 
           <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
-            <span className="text-xs text-slate-400 block mb-1">Pending Outbox</span>
+            <span className="text-xs text-slate-400 block mb-1">Waiting to Upload</span>
             <span className="text-base font-bold text-white font-mono">{pendingCount} changes</span>
           </div>
 
@@ -331,7 +336,7 @@ export default function SettingsPage() {
           </p>
           <button
             onClick={handleManualSync}
-            disabled={!isOnline || isSyncing}
+            disabled={!isOnline || isSyncing || syncState === 'signed_out'}
             className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             <RefreshCw className={cn('w-4 h-4', isSyncing && 'animate-spin')} />

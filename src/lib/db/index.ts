@@ -27,10 +27,44 @@ export class WatchVaultDatabase extends Dexie {
       app_settings: 'key',
       conflict_history: 'id, record_id, timestamp',
     });
+
+    // v2: cloud sync finds unsynced changes by updated_at, so episodes need that index.
+    // The old outbox (sync_queue) is no longer used; clear leftovers from the broken engine.
+    this.version(2)
+      .stores({
+        episode_progress: 'id, library_item_id, [library_item_id+season_number], is_watched, updated_at',
+      })
+      .upgrade((tx) => tx.table('sync_queue').clear());
   }
 }
 
 export const db = new WatchVaultDatabase();
+
+// --- Change notifications for the sync engine ---------------------------------
+// Every write to a synced table fires this event (debounced by the engine).
+// Writes performed while applying downloaded changes are suppressed.
+export const LOCAL_CHANGE_EVENT = 'watchvault:local-change';
+let remoteApplyDepth = 0;
+
+export async function runAsRemoteApply<T>(fn: () => Promise<T>): Promise<T> {
+  remoteApplyDepth++;
+  try {
+    return await fn();
+  } finally {
+    remoteApplyDepth--;
+  }
+}
+
+function emitLocalChange() {
+  if (remoteApplyDepth > 0 || typeof window === 'undefined') return;
+  setTimeout(() => window.dispatchEvent(new Event(LOCAL_CHANGE_EVENT)), 0);
+}
+
+for (const table of [db.library_items, db.episode_progress] as const) {
+  table.hook('creating', emitLocalChange);
+  table.hook('updating', emitLocalChange);
+  table.hook('deleting', emitLocalChange);
+}
 
 // Device identification
 export async function getOrCreateDeviceId(): Promise<string> {
@@ -49,27 +83,7 @@ export async function getOrCreateDeviceId(): Promise<string> {
   return newId;
 }
 
-// Queue an action to sync_queue
-export async function queueSyncAction(
-  entityType: 'library_item' | 'episode_progress' | 'settings',
-  entityId: string,
-  action: 'upsert' | 'delete',
-  payload: any
-) {
-  const syncItem: SyncQueueItem = {
-    id: `sync_${crypto.randomUUID()}`,
-    entity_type: entityType,
-    entity_id: entityId,
-    action,
-    payload,
-    timestamp: new Date().toISOString(),
-    status: 'pending',
-    retry_count: 0,
-  };
-  await db.sync_queue.put(syncItem);
-}
-
-// Database Operations with automatic sync queueing
+// Database Operations (cloud sync picks these up automatically via updated_at + change hooks)
 export async function saveLibraryItem(item: LibraryItem): Promise<void> {
   const now = new Date().toISOString();
   const updatedItem: LibraryItem = {
@@ -78,10 +92,7 @@ export async function saveLibraryItem(item: LibraryItem): Promise<void> {
     sync_version: (item.sync_version || 0) + 1,
   };
 
-  await db.transaction('rw', db.library_items, db.sync_queue, async () => {
-    await db.library_items.put(updatedItem);
-    await queueSyncAction('library_item', updatedItem.id, 'upsert', updatedItem);
-  });
+  await db.library_items.put(updatedItem);
 }
 
 // Soft delete (tombstone) so other devices know it's deleted
@@ -98,15 +109,12 @@ export async function deleteLibraryItem(id: string): Promise<void> {
     sync_version: (existing.sync_version || 0) + 1,
   };
 
-  await db.transaction('rw', db.library_items, db.sync_queue, async () => {
-    await db.library_items.put(tombstone);
-    await queueSyncAction('library_item', id, 'delete', tombstone);
-  });
+  await db.library_items.put(tombstone);
 }
 
-// Hard delete for cleanup if user explicitly resets
+// Hard delete for cleanup if user explicitly resets (local only, does not sync)
 export async function hardDeleteLibraryItem(id: string): Promise<void> {
-  await db.transaction('rw', db.library_items, db.episode_progress, db.sync_queue, async () => {
+  await db.transaction('rw', db.library_items, db.episode_progress, async () => {
     await db.library_items.delete(id);
     await db.episode_progress.where('library_item_id').equals(id).delete();
   });

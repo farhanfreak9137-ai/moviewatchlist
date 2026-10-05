@@ -215,7 +215,7 @@ export function CsvImporter({ onImportComplete }: { onImportComplete?: (count: n
     const deviceId = deviceSetting?.value || 'device_primary';
 
     // Get current items in library to prevent duplicates
-    const currentLibrary = await db.library_items.where('is_deleted').equals(0).toArray();
+    const currentLibrary = await db.library_items.filter((item) => !item.is_deleted).toArray();
     const existingTitles = new Set(currentLibrary.map((item) => item.title.toLowerCase().trim()));
 
     for (let i = 0; i < parsedRows.length; i++) {

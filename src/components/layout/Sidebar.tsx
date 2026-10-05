@@ -17,6 +17,7 @@ import {
   HardDrive,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { AppLogo } from './AppLogo';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -40,9 +41,7 @@ export function Sidebar() {
     <aside className="hidden lg:flex flex-col w-64 min-h-screen bg-[#090a10] border-r border-white/5 p-4 select-none shrink-0 sticky top-0 h-screen overflow-y-auto">
       {/* Brand */}
       <div className="flex items-center gap-3 px-2 py-4 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 to-red-500 flex items-center justify-center text-white shadow-xl shadow-rose-900/40">
-          <Film className="w-5 h-5" />
-        </div>
+        <AppLogo size={40} className="rounded-xl shadow-xl shadow-rose-900/40 shrink-0" />
         <div>
           <h1 className="font-bold text-xl tracking-tight text-white leading-none">
             Watch<span className="text-red-500">Vault</span>

@@ -21,7 +21,7 @@ export function LibraryItemRow({ item, onToggleFavorite }: LibraryItemRowProps) 
       {/* Thumbnail & Title info */}
       <div className="flex items-center gap-3.5 min-w-0 flex-1">
         <Link
-          href={`/title/${item.media_type}/${item.tmdb_id}`}
+          href={`/title?mediaType=${item.media_type}&id=${item.tmdb_id}`}
           className="relative w-12 h-16 rounded-lg overflow-hidden bg-[#181a26] shrink-0 border border-white/10"
         >
           {posterUrl ? (
@@ -35,7 +35,7 @@ export function LibraryItemRow({ item, onToggleFavorite }: LibraryItemRowProps) 
 
         <div className="min-w-0 flex-1">
           <Link
-            href={`/title/${item.media_type}/${item.tmdb_id}`}
+            href={`/title?mediaType=${item.media_type}&id=${item.tmdb_id}`}
             className="font-semibold text-sm text-slate-100 hover:text-red-400 transition-colors line-clamp-1"
           >
             {item.title}

@@ -240,10 +240,9 @@ export function EpisodeTracker({
     const allWatched = episodes.every((ep) => watchedSet.has(`s${seasonNum}_e${ep.episode_number}`));
     const now = new Date().toISOString();
 
-    for (const ep of episodes) {
-      const id = `${libraryItemId}_s${seasonNum}_e${ep.episode_number}`;
-      await db.episode_progress.put({
-        id,
+    await db.episode_progress.bulkPut(
+      episodes.map((ep) => ({
+        id: `${libraryItemId}_s${seasonNum}_e${ep.episode_number}`,
         library_item_id: libraryItemId,
         tmdb_id: tvId,
         season_number: seasonNum,
@@ -251,8 +250,8 @@ export function EpisodeTracker({
         is_watched: !allWatched,
         watched_at: !allWatched ? now : undefined,
         updated_at: now,
-      });
-    }
+      }))
+    );
 
     if (!allWatched && onProgressUpdate) {
       const lastEp = episodes[episodes.length - 1];
@@ -423,6 +422,59 @@ export function EpisodeTracker({
       {/* VIEW 1: THE SERIESGRAPH HEATMAP MATRIX */}
       {viewMode === 'matrix' && (
         <div className="space-y-4">
+          {/* Quick Season Marking (one tap marks/unmarks every episode in a season) */}
+          {libraryItemId && !loading && targetSeasons.length > 0 && (
+            <div className="p-3 rounded-2xl bg-[#10121a] border border-white/5">
+              <div className="flex items-center gap-2 mb-2.5">
+                <Layers className="w-3.5 h-3.5 text-red-400" />
+                <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+                  Mark Season Watched
+                </span>
+                <span className="text-[10px] text-slate-500 ml-auto">Tap again to unmark</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {targetSeasons.map((season) => {
+                  const sNum = season.season_number;
+                  const eps = allSeasonEpisodes[sNum] || [];
+                  if (eps.length === 0) return null;
+                  const watchedCount = eps.filter((ep) => watchedSet.has(`s${sNum}_e${ep.episode_number}`)).length;
+                  const isDone = watchedCount === eps.length;
+                  const isPartial = watchedCount > 0 && !isDone;
+                  return (
+                    <button
+                      key={season.id}
+                      id={`mark-season-${sNum}`}
+                      onClick={() => toggleSeason(sNum)}
+                      aria-pressed={isDone}
+                      title={isDone ? `Unmark Season ${sNum}` : `Mark all of Season ${sNum} as watched`}
+                      className={cn(
+                        'flex items-center gap-1.5 pl-2 pr-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all active:scale-95 cursor-pointer',
+                        isDone
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                          : isPartial
+                            ? 'bg-sky-500/10 text-sky-200 border-sky-500/30 hover:bg-sky-500/20'
+                            : 'bg-white/5 text-slate-200 border-white/10 hover:bg-white/10'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'w-4 h-4 rounded-full flex items-center justify-center border',
+                          isDone ? 'bg-emerald-500 border-emerald-400' : 'border-white/25'
+                        )}
+                      >
+                        {isDone && <Check className="w-2.5 h-2.5 text-white stroke-[4]" />}
+                      </span>
+                      <span>S{sNum}</span>
+                      <span className="font-mono text-[10px] opacity-70">
+                        {watchedCount}/{eps.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="p-3 sm:p-6 rounded-2xl bg-[#0e1017] border border-white/10 overflow-x-auto shadow-2xl">
             {loading ? (
               <div className="py-20 text-center text-slate-400 text-xs">

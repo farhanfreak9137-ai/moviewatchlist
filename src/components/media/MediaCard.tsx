@@ -66,7 +66,7 @@ export function MediaCard({
         className
       )}
     >
-      <Link href={`/title/${mediaType}/${id}`} className="block relative aspect-[2/3] w-full bg-[#181a24] overflow-hidden">
+      <Link href={`/title?mediaType=${mediaType}&id=${id}`} className="block relative aspect-[2/3] w-full bg-[#181a24] overflow-hidden">
         {posterUrl && !imgError ? (
           <img
             src={posterUrl}
@@ -135,7 +135,7 @@ export function MediaCard({
 
       {/* Title & Metadata Details */}
       <div className="p-3 flex-1 flex flex-col justify-between">
-        <Link href={`/title/${mediaType}/${id}`} className="block">
+        <Link href={`/title?mediaType=${mediaType}&id=${id}`} className="block">
           <h3 className="font-semibold text-sm text-slate-100 line-clamp-1 group-hover:text-red-400 transition-colors">
             {title}
           </h3>

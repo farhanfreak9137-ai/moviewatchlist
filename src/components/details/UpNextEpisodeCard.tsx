@@ -106,25 +106,6 @@ export function UpNextEpisodeCard({
       updated_at: now,
     });
 
-    await db.sync_queue.put({
-      id: `sync_ep_${id}_${Date.now()}`,
-      entity_type: 'episode_progress',
-      action: 'upsert',
-      entity_id: id,
-      payload: {
-        id,
-        library_item_id: libraryItemId,
-        tmdb_id: tvId,
-        season_number: nextSeason,
-        episode_number: nextEpNumber,
-        is_watched: true,
-        watched_at: now,
-      },
-      timestamp: now,
-      status: 'pending',
-      retry_count: 0,
-    });
-
     await db.library_items.update(libraryItemId, {
       current_season: nextSeason,
       current_episode: nextEpNumber,

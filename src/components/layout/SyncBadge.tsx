@@ -1,19 +1,26 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSync } from '@/hooks/useSync';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
-import { RefreshCw, WifiOff, CheckCircle2, AlertCircle, Laptop, Smartphone } from 'lucide-react';
+import { RefreshCw, WifiOff, CheckCircle2, AlertCircle, CloudOff } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 export function SyncBadge() {
-  const { syncState, pendingCount, lastSyncedAt, deviceName, triggerSync } = useSync();
+  const { syncState, pendingCount, lastSyncedAt, deviceName, userEmail, triggerSync } = useSync();
   const isOnline = useNetworkStatus();
+  const router = useRouter();
   const [isManualSyncing, setIsManualSyncing] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
+  const isSignedOut = syncState === 'signed_out';
 
   const handleManualSync = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isSignedOut) {
+      router.push('/settings');
+      return;
+    }
     if (!isOnline || isManualSyncing) return;
     setIsManualSyncing(true);
     await triggerSync();
@@ -21,6 +28,15 @@ export function SyncBadge() {
   };
 
   const getStatusDisplay = () => {
+    if (isSignedOut) {
+      return {
+        label: 'Sign in',
+        sublabel: 'Sign in under Settings to sync your phone and PC',
+        color: 'text-slate-300 bg-white/5 border-white/15',
+        dot: 'bg-slate-400',
+        icon: CloudOff,
+      };
+    }
     if (!isOnline || syncState === 'offline') {
       return {
         label: 'Offline',
@@ -80,7 +96,7 @@ export function SyncBadge() {
           'flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium border transition-all duration-200 cursor-pointer hover:opacity-90',
           status.color
         )}
-        title="Click to sync now"
+        title={isSignedOut ? 'Sign in to sync' : 'Click to sync now'}
       >
         <span className={cn('w-2 h-2 rounded-full', status.dot)} />
         <span className="hidden sm:inline font-mono tracking-tight">{status.label}</span>
@@ -105,6 +121,12 @@ export function SyncBadge() {
               <span>Device:</span>
               <span className="font-medium text-slate-200 truncate max-w-[130px]">{deviceName}</span>
             </div>
+            {userEmail && (
+              <div className="flex items-center justify-between text-[11px] text-slate-400">
+                <span>Account:</span>
+                <span className="font-medium text-slate-200 truncate max-w-[150px]">{userEmail}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-[11px] text-slate-400">
               <span>Last Synced:</span>
               <span className="text-slate-200 font-mono">
@@ -112,14 +134,14 @@ export function SyncBadge() {
               </span>
             </div>
           </div>
-          {isOnline && (
+          {(isOnline || isSignedOut) && (
             <button
               onClick={handleManualSync}
               disabled={isManualSyncing}
               className="w-full py-1.5 px-2 bg-white/10 hover:bg-white/15 text-white rounded-lg text-center font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5"
             >
               <RefreshCw className={cn('w-3 h-3', isManualSyncing && 'animate-spin')} />
-              {isManualSyncing ? 'Syncing...' : 'Sync Now'}
+              {isSignedOut ? 'Go to sign in' : isManualSyncing ? 'Syncing...' : 'Sync Now'}
             </button>
           )}
         </div>

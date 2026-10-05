@@ -109,6 +109,8 @@ export function getImageUrl(
   return `${TMDB_IMAGE_BASE}/${size}${path}`;
 }
 
+const DEFAULT_TMDB_KEY = 'c56139572123d721aa33c2c33da73646';
+
 // Fetch helper with local Dexie caching and offline fallback
 async function fetchWithCache<T>(cacheKey: string, endpoint: string, ttlSeconds: number = 86400): Promise<T> {
   // 1. Try local cache first if offline
@@ -121,16 +123,21 @@ async function fetchWithCache<T>(cacheKey: string, endpoint: string, ttlSeconds:
 
   try {
     // Check if user set custom TMDB API key in settings
-    let customHeaders: Record<string, string> = {};
+    let apiKey = DEFAULT_TMDB_KEY;
     if (typeof window !== 'undefined') {
       const customKeySetting = await db.app_settings.get('custom_tmdb_key');
       if (customKeySetting?.value) {
-        customHeaders['x-tmdb-api-key'] = customKeySetting.value;
+        apiKey = customKeySetting.value;
       }
     }
 
-    const res = await fetch(`/api/tmdb/${endpoint}`, {
-      headers: customHeaders,
+    const sep = endpoint.includes('?') ? '&' : '?';
+    const tmdbUrl = `https://api.themoviedb.org/3/${endpoint}${sep}api_key=${apiKey}`;
+
+    const res = await fetch(tmdbUrl, {
+      headers: {
+        Accept: 'application/json',
+      },
     });
 
     if (!res.ok) {

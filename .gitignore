@@ -42,3 +42,6 @@ next-env.d.ts
 
 # playwright test artifacts
 .playwright-mcp/
+
+# binaries / builds
+*.apk

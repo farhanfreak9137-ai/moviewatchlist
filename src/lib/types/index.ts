@@ -118,7 +118,7 @@ export interface ConflictHistory {
   description: string;
 }
 
-export type SyncState = 'synced' | 'syncing' | 'offline' | 'pending' | 'error';
+export type SyncState = 'synced' | 'syncing' | 'offline' | 'pending' | 'error' | 'signed_out';
 
 export type MediaFocus = 'balanced' | 'movies' | 'tv';
 export type QualityFilter = 'all' | 'high_acclaim' | 'hidden_gems';

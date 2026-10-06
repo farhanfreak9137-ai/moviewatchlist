@@ -6,13 +6,18 @@ export interface FranchiseDefinition {
   aliases: string[];
   description: string;
   companyIds?: number[];
+  collectionIds?: number[];
   keywordIds?: number[];
   queryKeywords?: string[];
+  maxMoviePages?: number;
+  maxTvPages?: number;
+  language?: string;
+  isAnime?: boolean;
   filterItems?: (item: any) => boolean;
   bannerGradient: string;
   badgeBorder: string;
   badgeText: string;
-  iconType: 'marvel' | 'dc' | 'xmen' | 'starwars' | 'pixar' | 'ghibli' | 'a24' | 'disney' | 'generic';
+  iconType: 'marvel' | 'dc' | 'xmen' | 'starwars' | 'pixar' | 'ghibli' | 'a24' | 'disney' | 'dreamworks' | 'anime' | 'warnerbros' | 'generic';
 }
 
 export const FRANCHISES: FranchiseDefinition[] = [
@@ -35,9 +40,11 @@ export const FRANCHISES: FranchiseDefinition[] = [
     ],
     description:
       'All blockbuster movies, Disney+ series, and superhero spectacles unified from Marvel Studios, Marvel Entertainment, and the MCU.',
-    companyIds: [420, 7505, 19551, 13252, 11210],
+    companyIds: [420, 7505, 19551, 13252, 11210, 11106, 38836],
     keywordIds: [180547, 9715],
-    queryKeywords: ['marvel', 'mcu'],
+    queryKeywords: ['marvel', 'mcu', 'avengers', 'iron man', 'captain america', 'thor', 'guardians of the galaxy', 'spider-man'],
+    maxMoviePages: 10,
+    maxTvPages: 6,
     bannerGradient: 'from-red-950/80 via-red-900/30 to-transparent',
     badgeBorder: 'border-red-500/40',
     badgeText: 'text-red-400',
@@ -62,9 +69,12 @@ export const FRANCHISES: FranchiseDefinition[] = [
     ],
     description:
       'The legendary mutant universe — from the original trilogy to First Class, Days of Future Past, Logan, Deadpool & Wolverine, and X-Men 97.',
-    companyIds: [],
+    companyIds: [25, 127928],
+    collectionIds: [748, 131292, 448150],
     keywordIds: [2095, 155477],
-    queryKeywords: ['x-men', 'wolverine', 'deadpool', 'the new mutants', 'dark phoenix', 'logan'],
+    queryKeywords: ['x-men', 'wolverine', 'deadpool', 'the new mutants', 'dark phoenix', 'logan', 'x-men 97', 'legion'],
+    maxMoviePages: 6,
+    maxTvPages: 4,
     filterItems: (item: any) => {
       const title = (item.title || item.name || '').toLowerCase();
       const overview = (item.overview || '').toLowerCase();
@@ -78,7 +88,9 @@ export const FRANCHISES: FranchiseDefinition[] = [
         title.includes('dark phoenix') ||
         (title.includes('logan') && overview.includes('wolverine')) ||
         overview.includes('mutant') ||
-        overview.includes('x-men')
+        overview.includes('x-men') ||
+        overview.includes('wolverine') ||
+        overview.includes('deadpool')
       );
     },
     bannerGradient: 'from-amber-950/80 via-yellow-900/30 to-transparent',
@@ -92,7 +104,10 @@ export const FRANCHISES: FranchiseDefinition[] = [
     aliases: ['bollywood', 'hindi', 'hindi movies', 'hindi series', 'hindi shows', 'indian cinema', 'tollywood'],
     description: 'The vibrant, emotional, and record-shattering world of Bollywood cinema and Indian streaming series.',
     companyIds: [],
-    queryKeywords: ['dangal', 'jawan', 'pathaan', '3 idiots', 'sholay', 'sacred games', 'mirzapur'],
+    language: 'hi',
+    queryKeywords: ['dangal', 'jawan', 'pathaan', '3 idiots', 'sholay', 'sacred games', 'mirzapur', 'stree 2'],
+    maxMoviePages: 8,
+    maxTvPages: 5,
     bannerGradient: 'from-amber-950/80 via-orange-900/30 to-transparent',
     badgeBorder: 'border-orange-500/40',
     badgeText: 'text-orange-400',
@@ -105,7 +120,9 @@ export const FRANCHISES: FranchiseDefinition[] = [
     description: 'The cinematic universe of DC Comics, featuring Batman, Superman, Wonder Woman, and the Justice League.',
     companyIds: [9993, 128064, 429],
     keywordIds: [849, 9715],
-    queryKeywords: ['dc', 'dceu', 'batman', 'superman'],
+    queryKeywords: ['dc comics', 'dceu', 'dc universe', 'batman', 'superman', 'justice league', 'wonder woman'],
+    maxMoviePages: 10,
+    maxTvPages: 6,
     bannerGradient: 'from-blue-950/80 via-indigo-900/30 to-transparent',
     badgeBorder: 'border-blue-500/40',
     badgeText: 'text-blue-400',
@@ -118,7 +135,9 @@ export const FRANCHISES: FranchiseDefinition[] = [
     description: 'A galaxy far, far away — episodic sagas, spin-off films, and live-action series by Lucasfilm.',
     companyIds: [1],
     keywordIds: [161176],
-    queryKeywords: ['star wars'],
+    queryKeywords: ['star wars', 'lucasfilm', 'mandalorian', 'clone wars', 'andor'],
+    maxMoviePages: 8,
+    maxTvPages: 4,
     bannerGradient: 'from-amber-950/80 via-amber-900/30 to-transparent',
     badgeBorder: 'border-amber-500/40',
     badgeText: 'text-amber-400',
@@ -128,9 +147,11 @@ export const FRANCHISES: FranchiseDefinition[] = [
     id: 'pixar',
     name: 'Pixar Animation Studios',
     aliases: ['pixar', 'pixar animation'],
-    description: 'Heartwarming, innovative computer-animated cinematic masterpieces from Pixar.',
+    description: 'Heartwarming, innovative computer-animated cinematic masterpieces and shorts from Pixar.',
     companyIds: [3],
-    queryKeywords: ['pixar'],
+    queryKeywords: ['pixar', 'toy story', 'monsters inc', 'cars', 'finding nemo', 'incredibles', 'inside out'],
+    maxMoviePages: 8,
+    maxTvPages: 3,
     bannerGradient: 'from-sky-950/80 via-cyan-900/30 to-transparent',
     badgeBorder: 'border-cyan-500/40',
     badgeText: 'text-cyan-400',
@@ -142,7 +163,9 @@ export const FRANCHISES: FranchiseDefinition[] = [
     aliases: ['ghibli', 'studio ghibli', 'hayao miyazaki', 'miyazaki'],
     description: 'Iconic hand-drawn, magical anime films created by Hayao Miyazaki and Studio Ghibli.',
     companyIds: [10342],
-    queryKeywords: ['ghibli', 'miyazaki'],
+    queryKeywords: ['ghibli', 'studio ghibli', 'hayao miyazaki', 'grave of the fireflies', 'totoro', 'spirited away'],
+    maxMoviePages: 6,
+    maxTvPages: 2,
     bannerGradient: 'from-emerald-950/80 via-teal-900/30 to-transparent',
     badgeBorder: 'border-emerald-500/40',
     badgeText: 'text-emerald-400',
@@ -155,6 +178,8 @@ export const FRANCHISES: FranchiseDefinition[] = [
     description: 'Acclaimed independent cinema, genre-defying visions, and modern cult classics from A24.',
     companyIds: [41077],
     queryKeywords: ['a24'],
+    maxMoviePages: 10,
+    maxTvPages: 4,
     bannerGradient: 'from-stone-900/80 via-neutral-900/40 to-transparent',
     badgeBorder: 'border-white/30',
     badgeText: 'text-slate-200',
@@ -162,15 +187,111 @@ export const FRANCHISES: FranchiseDefinition[] = [
   },
   {
     id: 'disney',
-    name: 'Walt Disney Pictures',
-    aliases: ['disney', 'walt disney'],
+    name: 'Walt Disney Pictures & Studios',
+    aliases: ['disney', 'walt disney', 'walt disney pictures', 'disney animation'],
     description: 'Classic Disney animation, fairy tales, live-action adventures, and musical spectacles.',
-    companyIds: [2],
-    queryKeywords: ['disney'],
+    companyIds: [2, 6125, 3166, 1583, 11073, 670],
+    queryKeywords: ['disney', 'walt disney'],
+    maxMoviePages: 15,
+    maxTvPages: 6,
     bannerGradient: 'from-purple-950/80 via-blue-900/30 to-transparent',
     badgeBorder: 'border-purple-500/40',
     badgeText: 'text-purple-300',
     iconType: 'disney',
+  },
+  {
+    id: 'dreamworks',
+    name: 'DreamWorks Animation & Studios',
+    aliases: [
+      'dreamworks',
+      'dreamworks animation',
+      'dream works',
+      'dreamworks pictures',
+      'dreamworks skg',
+      'dreamworks movies',
+      'dreamworks series',
+    ],
+    description:
+      'Iconic animated adventures, humor, and beloved franchises from Shrek and How to Train Your Dragon to Kung Fu Panda and The Wild Robot.',
+    companyIds: [521, 42141, 7, 15258],
+    queryKeywords: [
+      'dreamworks',
+      'shrek',
+      'how to train your dragon',
+      'kung fu panda',
+      'madagascar',
+      'puss in boots',
+      'the wild robot',
+      'megamind',
+      'the bad guys',
+    ],
+    maxMoviePages: 15,
+    maxTvPages: 6,
+    bannerGradient: 'from-sky-950/85 via-blue-900/35 to-transparent',
+    badgeBorder: 'border-sky-500/40',
+    badgeText: 'text-sky-300',
+    iconType: 'dreamworks',
+  },
+  {
+    id: 'anime',
+    name: 'Anime Universe & Japanese Animation',
+    aliases: [
+      'anime',
+      'animes',
+      'anime movies',
+      'anime series',
+      'anime shows',
+      'japanese animation',
+      'manga anime',
+      'otaku',
+    ],
+    description:
+      'Epic shonen sagas, breathtaking theatrical features, dark fantasy, and beloved Japanese animated masterpieces.',
+    isAnime: true,
+    queryKeywords: [
+      'attack on titan',
+      'demon slayer',
+      'jujutsu kaisen',
+      'solo leveling',
+      'one piece',
+      'naruto',
+      'bleach',
+      'death note',
+      'chainsaw man',
+      'your name',
+      'suzume',
+      'dragon ball',
+      'fullmetal alchemist',
+      'hunter x hunter',
+    ],
+    maxMoviePages: 12,
+    maxTvPages: 12,
+    bannerGradient: 'from-pink-950/85 via-purple-950/35 to-transparent',
+    badgeBorder: 'border-pink-500/40',
+    badgeText: 'text-pink-300',
+    iconType: 'anime',
+  },
+  {
+    id: 'warnerbros',
+    name: 'Warner Bros. Pictures & Entertainment',
+    aliases: [
+      'warner bros',
+      'warner brothers',
+      'warner bros pictures',
+      'warner',
+      'wb',
+      'warner media',
+    ],
+    description:
+      'A century of legendary blockbusters, the Wizarding World, DC Comics, Matrix, Monsterverse, and prestige cinema.',
+    companyIds: [174, 2785],
+    queryKeywords: ['harry potter', 'lord of the rings', 'dune', 'matrix', 'godzilla kong'],
+    maxMoviePages: 15,
+    maxTvPages: 6,
+    bannerGradient: 'from-blue-950/90 via-indigo-950/40 to-transparent',
+    badgeBorder: 'border-blue-400/40',
+    badgeText: 'text-blue-300',
+    iconType: 'warnerbros',
   },
 ];
 
@@ -211,11 +332,11 @@ export const GENRE_MAP: GenreDefinition[] = [
   },
   {
     id: 'animation',
-    name: 'Animation & Anime',
-    aliases: ['animation', 'animated', 'anime', 'cartoon', 'cartoons'],
+    name: 'Animation & Cartoons',
+    aliases: ['animation', 'animated', 'cartoon', 'cartoons'],
     movieGenreId: 16,
     tvGenreId: 16,
-    description: 'Animated features, Japanese anime, 3D CGI masterpieces, and stop-motion wonders.',
+    description: 'Animated features, 3D CGI masterpieces, and stop-motion wonders.',
     bannerGradient: 'from-pink-950/80 via-rose-950/30 to-transparent',
     badgeBorder: 'border-pink-500/40',
     badgeText: 'text-pink-400',

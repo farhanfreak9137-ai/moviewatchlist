@@ -30,6 +30,8 @@ export interface SmartSearchResult {
     badgeText?: string;
     iconType?: string;
     totalTitles?: number;
+    hasMorePages?: boolean;
+    lastFetchedPage?: number;
   };
   originalQuery: string;
   executedQuery: string;
@@ -84,7 +86,10 @@ export async function executeSmartSearch(
     };
   }
 
-  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  const isOnline =
+    typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean'
+      ? navigator.onLine
+      : true;
 
   // --- OFFLINE SEARCH FALLBACK ---
   if (!isOnline) {
@@ -114,7 +119,7 @@ export async function executeSmartSearch(
     }
 
     // 4. STANDARD MULTI-SEARCH WITH TYPO DETECTION
-    let items = await tmdbService.searchMulti(query);
+    let items = await tmdbService.searchMultiPages(query, 3);
     let correctedFrom: string | undefined;
     let didYouMean: string | undefined;
 
@@ -124,7 +129,7 @@ export async function executeSmartSearch(
     if (items.length === 0 && !forceOriginal) {
       // Zero results: try searching with fuzzy corrected term if available
       if (bestCorrection) {
-        const correctedItems = await tmdbService.searchMulti(bestCorrection.corrected);
+        const correctedItems = await tmdbService.searchMultiPages(bestCorrection.corrected, 3);
         if (correctedItems.length > 0) {
           return {
             type: 'standard',
@@ -266,7 +271,7 @@ export async function getSmartAutocomplete(
   }
 
   // 5. If online and user has typed at least 2 characters, supplement with TMDB live autocomplete
-  if (typeof navigator !== 'undefined' && navigator.onLine && query.length >= 2) {
+  if ((typeof navigator === 'undefined' || navigator.onLine !== false) && query.length >= 2) {
     try {
       const liveResults = await tmdbService.searchMultiRaw(query, 1);
       for (const item of liveResults.slice(0, 10)) {
@@ -323,44 +328,116 @@ async function resolveFranchiseSearch(
   franchise: FranchiseDefinition,
   originalQuery: string
 ): Promise<SmartSearchResult> {
-  let movies: TMDBMediaItem[] = [];
-  let series: TMDBMediaItem[] = [];
-
-  // 1. Fetch using company IDs if available
-  if (franchise.companyIds && franchise.companyIds.length > 0) {
-    const [compMovies, compTv] = await Promise.all([
-      tmdbService.discoverByCompanies(franchise.companyIds, 'movie', 1).catch(() => []),
-      tmdbService.discoverByCompanies(franchise.companyIds, 'tv', 1).catch(() => []),
-    ]);
-    movies = compMovies;
-    series = compTv;
-  }
-
-  // 2. Query keywords to ensure complete universe coverage
-  const keywords = franchise.queryKeywords && franchise.queryKeywords.length > 0
-    ? franchise.queryKeywords
-    : [franchise.name];
-
-  const keywordSearches = await Promise.all(
-    keywords.map((kw) => tmdbService.searchMulti(kw).catch(() => []))
-  );
-
-  // Merge and deduplicate
   const map = new Map<string, TMDBMediaItem>();
-  [...movies, ...series, ...keywordSearches.flat()].forEach((item) => {
+
+  const addItem = (item: TMDBMediaItem) => {
+    if (!item || !item.id) return;
     if (franchise.filterItems && !franchise.filterItems(item)) {
       return;
     }
-    const key = `${item.media_type || (item.name ? 'tv' : 'movie')}_${item.id}`;
+    const mt = (item.media_type || (item.name ? 'tv' : 'movie')) as MediaType;
+    const key = `${mt}_${item.id}`;
     if (!map.has(key)) {
       map.set(key, {
         ...item,
-        media_type: (item.media_type || (item.name ? 'tv' : 'movie')) as MediaType,
+        media_type: mt,
       });
     }
-  });
+  };
 
-  const merged = Array.from(map.values()).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+  const tasks: Promise<any>[] = [];
+
+  // 1. Fetch using company IDs if available (deep parallel multi-page)
+  if (franchise.companyIds && franchise.companyIds.length > 0) {
+    const moviePages = franchise.maxMoviePages || 10;
+    const tvPages = franchise.maxTvPages || 6;
+
+    tasks.push(
+      tmdbService
+        .discoverAllByCompanies(franchise.companyIds, 'movie', moviePages)
+        .then((res) => res.results.forEach(addItem))
+        .catch(() => {})
+    );
+    tasks.push(
+      tmdbService
+        .discoverAllByCompanies(franchise.companyIds, 'tv', tvPages)
+        .then((res) => res.results.forEach(addItem))
+        .catch(() => {})
+    );
+  }
+
+  // 2. Fetch collections if available (e.g. X-Men, Wolverine, Deadpool)
+  if (franchise.collectionIds && franchise.collectionIds.length > 0) {
+    for (const colId of franchise.collectionIds) {
+      tasks.push(
+        tmdbService
+          .getCollection(colId)
+          .then((parts) => parts.forEach(addItem))
+          .catch(() => {})
+      );
+    }
+  }
+
+  // 3. Fetch language if available (e.g. Bollywood)
+  if (franchise.language) {
+    tasks.push(
+      tmdbService
+        .discoverAllHindi('movie', franchise.maxMoviePages || 8)
+        .then((items) => items.forEach(addItem))
+        .catch(() => {})
+    );
+    tasks.push(
+      tmdbService
+        .discoverAllHindi('tv', franchise.maxTvPages || 5)
+        .then((items) => items.forEach(addItem))
+        .catch(() => {})
+    );
+  }
+
+  // 4. Fetch Anime if isAnime
+  if (franchise.isAnime) {
+    const moviePages = franchise.maxMoviePages || 12;
+    const tvPages = franchise.maxTvPages || 12;
+    tasks.push(
+      tmdbService
+        .discoverAllAnime('movie', moviePages)
+        .then((items) => items.forEach(addItem))
+        .catch(() => {})
+    );
+    tasks.push(
+      tmdbService
+        .discoverAllAnime('tv', tvPages)
+        .then((items) => items.forEach(addItem))
+        .catch(() => {})
+    );
+  }
+
+  // 5. Query keywords to ensure complete universe coverage across multiple pages
+  const keywords =
+    franchise.queryKeywords && franchise.queryKeywords.length > 0
+      ? franchise.queryKeywords
+      : [franchise.name];
+
+  for (const kw of keywords) {
+    tasks.push(
+      tmdbService
+        .searchMultiPages(kw, 3)
+        .then((items) => items.forEach(addItem))
+        .catch(() => {})
+    );
+  }
+
+  await Promise.all(tasks);
+
+  const merged = Array.from(map.values()).sort(
+    (a, b) => (b.popularity || 0) - (a.popularity || 0)
+  );
+
+  const hasMore =
+    franchise.id === 'disney' ||
+    franchise.id === 'anime' ||
+    franchise.id === 'dreamworks' ||
+    franchise.id === 'warnerbros';
 
   return {
     type: 'franchise',
@@ -375,16 +452,52 @@ async function resolveFranchiseSearch(
       badgeText: franchise.badgeText,
       iconType: franchise.iconType,
       totalTitles: merged.length,
+      hasMorePages: hasMore,
+      lastFetchedPage: hasMore ? (franchise.maxMoviePages || 15) : undefined,
     },
     originalQuery,
     executedQuery: franchise.name,
   };
 }
 
+export async function loadMoreStudioCatalog(
+  franchiseId: string,
+  startPage: number,
+  pageCount: number = 5
+): Promise<TMDBMediaItem[]> {
+  const franchise = FRANCHISES.find((f) => f.id === franchiseId);
+  if (!franchise) {
+    return [];
+  }
+  if (franchise.isAnime) {
+    const [movies, tvs] = await Promise.all([
+      tmdbService.discoverAllAnime('movie', pageCount, startPage).catch(() => []),
+      tmdbService.discoverAllAnime('tv', pageCount, startPage).catch(() => []),
+    ]);
+    return [...movies, ...tvs];
+  }
+  if (!franchise.companyIds || franchise.companyIds.length === 0) {
+    return [];
+  }
+  const [movieRes, tvRes] = await Promise.all([
+    tmdbService
+      .discoverAllByCompanies(franchise.companyIds, 'movie', pageCount, startPage)
+      .catch(() => ({ results: [] })),
+    tmdbService
+      .discoverAllByCompanies(franchise.companyIds, 'tv', Math.max(1, Math.floor(pageCount / 2)), startPage)
+      .catch(() => ({ results: [] })),
+  ]);
+  const all = [...movieRes.results, ...tvRes.results];
+  if (franchise.filterItems) {
+    return all.filter(franchise.filterItems);
+  }
+  return all;
+}
+
 async function resolveGenreSearch(genre: GenreDefinition, originalQuery: string): Promise<SmartSearchResult> {
   const [movies, series] = await Promise.all([
-    tmdbService.discoverByGenres([genre.movieGenreId], 'movie', 1).catch(() => []),
-    tmdbService.discoverByGenres([genre.tvGenreId], 'tv', 1).catch(() => []),
+    tmdbService.discoverAllByGenres([genre.movieGenreId], 'movie', 5).catch(() => []),
+    tmdbService.discoverAllByGenres([genre.tvGenreId], 'tv', 5).catch(() => []),
   ]);
 
   const map = new Map<string, TMDBMediaItem>();

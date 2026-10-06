@@ -72,10 +72,12 @@ export async function executeSmartSearch(
   options: {
     libraryItems?: LibraryItem[];
     forceOriginal?: boolean;
+    searchType?: 'all' | 'person' | 'movie' | 'tv';
+    personId?: number;
   } = {}
 ): Promise<SmartSearchResult> {
   const query = rawQuery.trim();
-  const { libraryItems = [], forceOriginal = false } = options;
+  const { libraryItems = [], forceOriginal = false, searchType = 'all', personId } = options;
 
   if (!query) {
     return {
@@ -99,6 +101,17 @@ export async function executeSmartSearch(
   try {
     const norm = normalizeSearchString(query);
 
+    // 0. EXPLICIT PERSON SEARCH (e.g. from clicking an actor autocomplete suggestion)
+    if (searchType === 'person') {
+      if (personId) {
+        return await resolvePersonById(personId, query);
+      }
+      const forcedPerson = await checkPersonMatch(query, true);
+      if (forcedPerson) {
+        return await resolvePersonSearch(forcedPerson, query);
+      }
+    }
+
     // 1. FRANCHISE / STUDIO RESOLUTION (e.g. "marvel", "mcu", "dc", "star wars", "pixar", "a24")
     const matchedFranchise = matchFranchise(query);
     if (matchedFranchise) {
@@ -111,15 +124,28 @@ export async function executeSmartSearch(
       return await resolveGenreSearch(matchedGenre, query);
     }
 
-    // 3. ACTOR / PERSON RESOLUTION (e.g. "Keanu Reeves", "Cillian Murphy", "Leonardo DiCaprio")
-    // Check if query is likely an actor or director
-    const personMatch = await checkPersonMatch(query);
-    if (personMatch) {
-      return await resolvePersonSearch(personMatch, query);
+    // 3. FETCH MEDIA SEARCH CANDIDATES FIRST
+    let items = await tmdbService.searchMultiPages(query, 3);
+
+    // Check if there is an exact or near-exact media title match
+    const hasExactMediaTitleMatch = items.some((item) => {
+      const itemTitle = normalizeSearchString(item.title || item.name || '');
+      return itemTitle === norm || (norm.length >= 4 && itemTitle.startsWith(norm) && (item.popularity || 0) >= 8.0);
+    });
+
+    // 4. PERSON RESOLUTION (only if no exact media title exists or if person has overwhelmingly high popularity)
+    if (!hasExactMediaTitleMatch) {
+      const personMatch = await checkPersonMatch(query, false);
+      if (personMatch) {
+        const topItemPop = items[0]?.popularity || 0;
+        // Require person popularity to be significantly higher than any vague movie match
+        if (items.length === 0 || (personMatch.popularity || 0) > topItemPop) {
+          return await resolvePersonSearch(personMatch, query);
+        }
+      }
     }
 
-    // 4. STANDARD MULTI-SEARCH WITH TYPO DETECTION
-    let items = await tmdbService.searchMultiPages(query, 3);
+    // 5. STANDARD MULTI-SEARCH WITH TYPO DETECTION
     let correctedFrom: string | undefined;
     let didYouMean: string | undefined;
 
@@ -531,7 +557,36 @@ async function resolveGenreSearch(genre: GenreDefinition, originalQuery: string)
   };
 }
 
-async function checkPersonMatch(query: string): Promise<TMDBPersonResult | null> {
+async function resolvePersonById(
+  personId: number,
+  originalQuery: string
+): Promise<SmartSearchResult> {
+  const details = await tmdbService.getPersonDetails(personId).catch(() => null);
+  if (!details) {
+    const forcedPerson = await checkPersonMatch(originalQuery, true);
+    if (forcedPerson) {
+      return resolvePersonSearch(forcedPerson, originalQuery);
+    }
+    return {
+      type: 'standard',
+      items: [],
+      originalQuery,
+      executedQuery: originalQuery,
+    };
+  }
+  return resolvePersonSearch(
+    {
+      id: details.id,
+      name: details.name,
+      popularity: 10,
+      profile_path: details.profile_path,
+      known_for_department: details.known_for_department,
+    },
+    originalQuery
+  );
+}
+
+async function checkPersonMatch(query: string, force = false): Promise<TMDBPersonResult | null> {
   const normQuery = normalizeSearchString(query);
   if (normQuery.length < 3) return null;
 
@@ -541,16 +596,23 @@ async function checkPersonMatch(query: string): Promise<TMDBPersonResult | null>
 
     const topPerson = people[0];
     const normPersonName = normalizeSearchString(topPerson.name);
-
-    // Person must have minimum notoriety to avoid random obscure extras/music creators
     const popularity = topPerson.popularity || 0;
-    if (popularity < 4.0 && normPersonName !== normQuery) {
+    const wordsCount = normQuery.split(' ').filter(Boolean).length;
+
+    if (force) {
+      return topPerson;
+    }
+
+    // Minimum popularity filter:
+    // If single word (e.g. "Jack", "Suzume"), require very high notoriety (>= 12.0)
+    // If multi-word (e.g. "Tom Cruise", "Keanu Reeves"), require >= 4.0
+    const minPopularity = wordsCount === 1 ? 12.0 : 4.0;
+    if (popularity < minPopularity) {
       return null;
     }
 
     const similarity = stringSimilarity(normQuery, normPersonName);
     const dist = damerauLevenshteinDistance(normQuery, normPersonName);
-    const wordsCount = normQuery.split(' ').filter(Boolean).length;
 
     // 1. Exact match
     if (normPersonName === normQuery) {
@@ -558,7 +620,7 @@ async function checkPersonMatch(query: string): Promise<TMDBPersonResult | null>
     }
 
     // 2. High similarity or 1-char typo for single/multi word queries
-    if (similarity >= 0.88 && dist <= 2 && popularity >= 5.0) {
+    if (similarity >= 0.88 && dist <= 2 && popularity >= (wordsCount === 1 ? 15.0 : 5.0)) {
       return topPerson;
     }
 

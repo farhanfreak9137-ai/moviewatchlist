@@ -32,6 +32,17 @@
   }
 }
 
+/* Remove duplicate browser-native WebKit search cancel button and decorations */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+
 /* Custom sleek cinema scrollbar */
 ::-webkit-scrollbar {
   width: 5px;

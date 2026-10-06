@@ -70,6 +70,7 @@ interface SearchAutocompleteProps {
   recentSearches: string[];
   selectedIndex: number;
   onSelectQuery: (query: string) => void;
+  onSelectItem?: (item: AutocompleteItem) => void;
   onRemoveRecentSearch: (query: string) => void;
   onClearAllRecentSearches: () => void;
 }
@@ -82,6 +83,7 @@ export function SearchAutocomplete({
   recentSearches,
   selectedIndex,
   onSelectQuery,
+  onSelectItem,
   onRemoveRecentSearch,
   onClearAllRecentSearches,
 }: SearchAutocompleteProps) {
@@ -217,7 +219,7 @@ export function SearchAutocomplete({
               return (
                 <div
                   key={`franchise-${item.id}`}
-                  onClick={() => onSelectQuery(item.queryToExecute)}
+                  onClick={() => (onSelectItem ? onSelectItem(item) : onSelectQuery(item.queryToExecute))}
                   className={cn(
                     'flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all',
                     isSelected
@@ -260,7 +262,7 @@ export function SearchAutocomplete({
               return (
                 <div
                   key={`genre-${item.id}`}
-                  onClick={() => onSelectQuery(item.queryToExecute)}
+                  onClick={() => (onSelectItem ? onSelectItem(item) : onSelectQuery(item.queryToExecute))}
                   className={cn(
                     'flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all',
                     isSelected
@@ -304,7 +306,7 @@ export function SearchAutocomplete({
               return (
                 <div
                   key={`actor-${item.id}`}
-                  onClick={() => onSelectQuery(item.queryToExecute)}
+                  onClick={() => (onSelectItem ? onSelectItem(item) : onSelectQuery(item.queryToExecute))}
                   className={cn(
                     'flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all',
                     isSelected
@@ -356,7 +358,7 @@ export function SearchAutocomplete({
               return (
                 <div
                   key={`title-${item.id}`}
-                  onClick={() => onSelectQuery(item.queryToExecute)}
+                  onClick={() => (onSelectItem ? onSelectItem(item) : onSelectQuery(item.queryToExecute))}
                   className={cn(
                     'flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all',
                     isSelected

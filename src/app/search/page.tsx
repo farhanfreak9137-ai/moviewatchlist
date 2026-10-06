@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useLibrary } from '@/hooks/useLibrary';
 import { TMDBMediaItem } from '@/lib/metadata/tmdb';
 import { MediaCard } from '@/components/media/MediaCard';
@@ -13,6 +13,7 @@ import {
   loadMoreStudioCatalog,
   SmartSearchResult,
   AutocompleteResults,
+  AutocompleteItem,
 } from '@/lib/search/searchEngine';
 import {
   getRecentSearches,
@@ -230,8 +231,11 @@ const INSPIRATION_CHIPS = [
 ];
 
 function SearchContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const queryFromUrl = searchParams.get('q') || '';
+  const typeFromUrl = searchParams.get('type') || '';
+  const personIdFromUrl = searchParams.get('personId');
 
   const { libraryItems } = useLibrary();
 
@@ -311,9 +315,14 @@ function SearchContent() {
 
     if (queryFromUrl) {
       setInputQuery(queryFromUrl);
-      handleExecuteSearch(queryFromUrl);
+      handleExecuteSearch(
+        queryFromUrl,
+        false,
+        typeFromUrl === 'person' ? 'person' : undefined,
+        personIdFromUrl ? Number(personIdFromUrl) : undefined
+      );
     }
-  }, [queryFromUrl]);
+  }, [queryFromUrl, typeFromUrl, personIdFromUrl]);
 
   // Live autocomplete triggered starting from 1st letter, but NOT if search just completed
   useEffect(() => {
@@ -344,8 +353,48 @@ function SearchContent() {
     };
   }, [inputQuery, libraryItems, hasSearched, executedQuery]);
 
+  const flattenedList = useMemo(() => {
+    const list: Array<{ type: 'didYouMean' | 'item'; data: any }> = [];
+    if (autocompleteResults.didYouMean) {
+      list.push({ type: 'didYouMean', data: autocompleteResults.didYouMean });
+    }
+    autocompleteResults.franchises.forEach((i) => list.push({ type: 'item', data: i }));
+    autocompleteResults.genres.forEach((i) => list.push({ type: 'item', data: i }));
+    autocompleteResults.actors.forEach((i) => list.push({ type: 'item', data: i }));
+    autocompleteResults.titles.forEach((i) => list.push({ type: 'item', data: i }));
+    return list;
+  }, [autocompleteResults]);
+
+  const handleSelectItem = (item: AutocompleteItem) => {
+    if (autocompleteTimeoutRef.current) {
+      clearTimeout(autocompleteTimeoutRef.current);
+      autocompleteTimeoutRef.current = null;
+    }
+    setIsAutocompleteOpen(false);
+    inputRef.current?.blur();
+
+    addRecentSearch(item.title || item.queryToExecute);
+    setRecentSearches(getRecentSearches());
+
+    if (item.category === 'title') {
+      const realId = String(item.id).startsWith('local_')
+        ? String(item.id).replace('local_', '')
+        : item.id;
+      router.push(`/title?id=${encodeURIComponent(realId)}&type=${encodeURIComponent(item.mediaType || 'movie')}`);
+    } else if (item.category === 'actor') {
+      handleExecuteSearch(item.title, false, 'person', Number(item.id));
+    } else {
+      handleExecuteSearch(item.queryToExecute);
+    }
+  };
+
   // Execute full search and populate results
-  const handleExecuteSearch = async (queryToRun: string, forceOriginal = false) => {
+  const handleExecuteSearch = async (
+    queryToRun: string,
+    forceOriginal = false,
+    explicitSearchType?: 'all' | 'person' | 'movie' | 'tv',
+    explicitPersonId?: number
+  ) => {
     const trimmed = queryToRun.trim();
     if (!trimmed) return;
 
@@ -362,8 +411,14 @@ function SearchContent() {
     setIsLoading(true);
     setHasSearched(true);
 
+    const activeType = explicitSearchType || (typeFromUrl === 'person' ? 'person' : undefined);
+    const activePersonId = explicitPersonId || (personIdFromUrl ? Number(personIdFromUrl) : undefined);
+
     if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `/search?q=${encodeURIComponent(trimmed)}`);
+      const url = activeType === 'person'
+        ? `/search?q=${encodeURIComponent(trimmed)}&type=person${activePersonId ? `&personId=${activePersonId}` : ''}`
+        : `/search?q=${encodeURIComponent(trimmed)}`;
+      window.history.replaceState(null, '', url);
     }
 
     // Save to recents
@@ -374,6 +429,8 @@ function SearchContent() {
       const result = await executeSmartSearch(trimmed, {
         libraryItems,
         forceOriginal,
+        searchType: activeType,
+        personId: activePersonId,
       });
       setSearchResult(result);
 
@@ -399,23 +456,16 @@ function SearchContent() {
 
   // Keyboard navigation across input and autocomplete popup
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const allItems: string[] = [];
-    if (autocompleteResults.didYouMean) allItems.push(autocompleteResults.didYouMean);
-    autocompleteResults.franchises.forEach((i) => allItems.push(i.queryToExecute));
-    autocompleteResults.genres.forEach((i) => allItems.push(i.queryToExecute));
-    autocompleteResults.actors.forEach((i) => allItems.push(i.queryToExecute));
-    autocompleteResults.titles.forEach((i) => allItems.push(i.queryToExecute));
-
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!isAutocompleteOpen && inputQuery.trim().length > 0) {
         setIsAutocompleteOpen(true);
         return;
       }
-      setSelectedAutoIndex((prev) => (prev + 1 < allItems.length ? prev + 1 : 0));
+      setSelectedAutoIndex((prev) => (prev + 1 < flattenedList.length ? prev + 1 : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedAutoIndex((prev) => (prev - 1 >= 0 ? prev - 1 : allItems.length - 1));
+      setSelectedAutoIndex((prev) => (prev - 1 >= 0 ? prev - 1 : flattenedList.length - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (autocompleteTimeoutRef.current) {
@@ -424,11 +474,17 @@ function SearchContent() {
       }
       setIsAutocompleteOpen(false);
       inputRef.current?.blur();
-      if (isAutocompleteOpen && selectedAutoIndex >= 0 && selectedAutoIndex < allItems.length) {
-        handleExecuteSearch(allItems[selectedAutoIndex]);
-      } else {
-        handleExecuteSearch(inputQuery);
+      if (isAutocompleteOpen && selectedAutoIndex >= 0 && selectedAutoIndex < flattenedList.length) {
+        const selected = flattenedList[selectedAutoIndex];
+        if (selected.type === 'item') {
+          handleSelectItem(selected.data as AutocompleteItem);
+          return;
+        } else if (selected.type === 'didYouMean') {
+          handleExecuteSearch(selected.data);
+          return;
+        }
       }
+      handleExecuteSearch(inputQuery);
     } else if (e.key === 'Escape') {
       setIsAutocompleteOpen(false);
       inputRef.current?.blur();
@@ -564,7 +620,7 @@ function SearchContent() {
       </div>
 
       {/* Main Search Bar wrapped in form with 1st-letter Autocomplete and Search button */}
-      <form onSubmit={handleFormSubmit} action="javascript:void(0);" className="relative">
+      <form onSubmit={handleFormSubmit} action="javascript:void(0);" className="relative animate-in fade-in slide-in-from-top-2 duration-300">
         <div className="relative flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -585,7 +641,7 @@ function SearchContent() {
               onKeyDown={handleKeyDown}
               placeholder="Search by title, actor, 'Marvel', 'DC', 'Action'..."
               autoFocus
-              className="w-full bg-[#121420] border-2 border-white/10 hover:border-white/20 focus:border-red-500 rounded-2xl pl-12 pr-12 py-3.5 text-base text-white placeholder-slate-500 focus:outline-none transition-all shadow-xl"
+              className="w-full bg-[#121420] border-2 border-white/10 hover:border-white/20 focus:border-red-500 rounded-2xl pl-12 pr-12 py-3.5 text-base text-white placeholder-slate-500 focus:outline-none transition-all shadow-xl [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-cancel-button]:hidden"
             />
             {isLoading ? (
               <Loader2 className="w-5 h-5 absolute right-4 top-1/2 -translate-y-1/2 text-red-500 animate-spin" />
@@ -625,6 +681,7 @@ function SearchContent() {
           recentSearches={recentSearches}
           selectedIndex={selectedAutoIndex}
           onSelectQuery={(q) => handleExecuteSearch(q)}
+          onSelectItem={handleSelectItem}
           onRemoveRecentSearch={(q) => setRecentSearches(removeRecentSearch(q))}
           onClearAllRecentSearches={() => {
             clearRecentSearches();

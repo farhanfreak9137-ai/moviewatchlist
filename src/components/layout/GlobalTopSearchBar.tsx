@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Search, X, Loader2, ArrowRight } from 'lucide-react';
 import { useLibrary } from '@/hooks/useLibrary';
-import { getSmartAutocomplete, AutocompleteResults } from '@/lib/search/searchEngine';
+import { getSmartAutocomplete, AutocompleteResults, AutocompleteItem } from '@/lib/search/searchEngine';
 import {
   getRecentSearches,
   addRecentSearch,
@@ -125,6 +125,42 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
     };
   }, [query, libraryItems]);
 
+  const flattenedList = useMemo(() => {
+    const list: Array<{ type: 'didYouMean' | 'item'; data: any }> = [];
+    if (autocompleteResults.didYouMean) {
+      list.push({ type: 'didYouMean', data: autocompleteResults.didYouMean });
+    }
+    autocompleteResults.franchises.forEach((i) => list.push({ type: 'item', data: i }));
+    autocompleteResults.genres.forEach((i) => list.push({ type: 'item', data: i }));
+    autocompleteResults.actors.forEach((i) => list.push({ type: 'item', data: i }));
+    autocompleteResults.titles.forEach((i) => list.push({ type: 'item', data: i }));
+    return list;
+  }, [autocompleteResults]);
+
+  const handleSelectItem = (item: AutocompleteItem) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    setIsAutocompleteOpen(false);
+    setIsFocused(false);
+    inputRef.current?.blur();
+
+    addRecentSearch(item.title || item.queryToExecute);
+    setRecentSearches(getRecentSearches());
+
+    if (item.category === 'title') {
+      const realId = String(item.id).startsWith('local_')
+        ? String(item.id).replace('local_', '')
+        : item.id;
+      router.push(`/title?id=${encodeURIComponent(realId)}&type=${encodeURIComponent(item.mediaType || 'movie')}`);
+    } else if (item.category === 'actor') {
+      router.push(`/search?q=${encodeURIComponent(item.title)}&type=person&personId=${encodeURIComponent(item.id)}`);
+    } else {
+      router.push(`/search?q=${encodeURIComponent(item.queryToExecute)}`);
+    }
+  };
+
   const handleExecuteSearch = (searchQuery: string) => {
     const trimmed = searchQuery.trim();
     if (!trimmed) return;
@@ -149,8 +185,28 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
+      if (!isAutocompleteOpen && query.trim().length > 0) {
+        setIsAutocompleteOpen(true);
+        return;
+      }
+      setSelectedAutoIndex((prev) => (prev + 1 < flattenedList.length ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedAutoIndex((prev) => (prev - 1 >= 0 ? prev - 1 : flattenedList.length - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (isAutocompleteOpen && selectedAutoIndex >= 0 && selectedAutoIndex < flattenedList.length) {
+        const selected = flattenedList[selectedAutoIndex];
+        if (selected.type === 'item') {
+          handleSelectItem(selected.data as AutocompleteItem);
+          return;
+        } else if (selected.type === 'didYouMean') {
+          handleExecuteSearch(selected.data);
+          return;
+        }
+      }
       handleExecuteSearch(query);
     }
   };
@@ -186,6 +242,7 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
             placeholder="Search movies, series, studios, actors..."
             className={cn(
               'w-full bg-[#12141e] border rounded-xl pl-10 text-sm text-white placeholder-slate-400 transition-all duration-200 outline-none',
+              '[&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-cancel-button]:hidden',
               query ? 'pr-16' : 'pr-9',
               isFocused
                 ? 'border-red-500/60 ring-2 ring-red-500/20 py-2 bg-[#141724]'
@@ -243,6 +300,7 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
           setQuery(selectedQuery);
           handleExecuteSearch(selectedQuery);
         }}
+        onSelectItem={handleSelectItem}
         onRemoveRecentSearch={(searchToRemove) => {
           setRecentSearches(removeRecentSearch(searchToRemove));
         }}

@@ -10,6 +10,7 @@ import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import {
   executeSmartSearch,
   getSmartAutocomplete,
+  loadMoreStudioCatalog,
   SmartSearchResult,
   AutocompleteResults,
 } from '@/lib/search/searchEngine';
@@ -35,6 +36,10 @@ import {
   Star,
   CheckCircle2,
   SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import {
@@ -46,6 +51,9 @@ import {
   StudioGhibliLogo,
   A24Logo,
   DisneyLogo,
+  DreamWorksLogo,
+  AnimeLogo,
+  WarnerBrosLogo,
 } from '@/components/icons/BrandLogos';
 
 const SEARCH_STATE_STORAGE_KEY = 'watchvault_active_search_state';
@@ -57,6 +65,110 @@ interface SavedSearchState {
   filterType: 'all' | 'movie' | 'tv' | 'in_vault';
   sortBy: 'relevance' | 'rating' | 'release_date' | 'title';
   scrollY: number;
+  currentPage?: number;
+  pageSize?: number | 'all';
+}
+
+function PaginationControls({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  const pages: (number | string)[] = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    if (currentPage > 3) pages.push('...');
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push('...');
+    pages.push(totalPages);
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 pt-8 pb-4">
+      {/* First Page */}
+      <button
+        type="button"
+        disabled={currentPage === 1}
+        onClick={() => onPageChange(1)}
+        className="p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold bg-[#121422] border border-white/5 hover:border-white/20 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer flex items-center gap-1"
+        title="First Page"
+      >
+        <ChevronsLeft className="w-4 h-4" />
+        <span className="hidden sm:inline">First</span>
+      </button>
+
+      {/* Prev Page */}
+      <button
+        type="button"
+        disabled={currentPage === 1}
+        onClick={() => onPageChange(currentPage - 1)}
+        className="p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold bg-[#121422] border border-white/5 hover:border-white/20 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer flex items-center gap-1"
+        title="Previous Page"
+      >
+        <ChevronLeft className="w-4 h-4" />
+        <span className="hidden sm:inline">Prev</span>
+      </button>
+
+      {/* Numbered buttons */}
+      <div className="flex items-center gap-1">
+        {pages.map((p, idx) =>
+          typeof p === 'number' ? (
+            <button
+              key={`page-${p}`}
+              type="button"
+              onClick={() => onPageChange(p)}
+              className={cn(
+                'min-w-9 h-9 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center',
+                currentPage === p
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                  : 'bg-[#121422] border border-white/5 hover:border-white/20 text-slate-300 hover:text-white'
+              )}
+            >
+              {p}
+            </button>
+          ) : (
+            <span key={`dots-${idx}`} className="px-1 text-slate-500 text-xs select-none">
+              •••
+            </span>
+          )
+        )}
+      </div>
+
+      {/* Next Page */}
+      <button
+        type="button"
+        disabled={currentPage === totalPages}
+        onClick={() => onPageChange(currentPage + 1)}
+        className="p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold bg-[#121422] border border-white/5 hover:border-white/20 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer flex items-center gap-1"
+        title="Next Page"
+      >
+        <span className="hidden sm:inline">Next</span>
+        <ChevronRight className="w-4 h-4" />
+      </button>
+
+      {/* Last Page */}
+      <button
+        type="button"
+        disabled={currentPage === totalPages}
+        onClick={() => onPageChange(totalPages)}
+        className="p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold bg-[#121422] border border-white/5 hover:border-white/20 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer flex items-center gap-1"
+        title="Last Page"
+      >
+        <span className="hidden sm:inline">Last</span>
+        <ChevronsRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
 }
 
 function renderHeroBrandLogo(iconType?: string, type?: string) {
@@ -77,6 +189,12 @@ function renderHeroBrandLogo(iconType?: string, type?: string) {
       return <A24Logo size="lg" />;
     case 'disney':
       return <DisneyLogo size="lg" />;
+    case 'dreamworks':
+      return <DreamWorksLogo size="lg" />;
+    case 'anime':
+      return <AnimeLogo size="lg" />;
+    case 'warnerbros':
+      return <WarnerBrosLogo size="lg" />;
     default:
       if (type === 'genre') {
         return (
@@ -96,12 +214,15 @@ function renderHeroBrandLogo(iconType?: string, type?: string) {
 const INSPIRATION_CHIPS = [
   { label: 'Marvel', logo: <MarvelLogo size="sm" />, query: 'Marvel' },
   { label: 'DC Studios', logo: <DCLogo size="sm" />, query: 'DC' },
+  { label: 'DreamWorks', logo: <DreamWorksLogo size="sm" />, query: 'DreamWorks' },
+  { label: 'Anime', logo: <AnimeLogo size="sm" />, query: 'Anime' },
+  { label: 'Warner Bros', logo: <WarnerBrosLogo size="sm" />, query: 'Warner Bros' },
+  { label: 'Pixar', logo: <PixarLogo size="sm" />, query: 'Pixar' },
+  { label: 'Disney', logo: <DisneyLogo size="sm" />, query: 'Disney' },
+  { label: 'Studio Ghibli', logo: <StudioGhibliLogo size="sm" />, query: 'Studio Ghibli' },
   { label: 'X-Men', logo: <XMenLogo size="sm" />, query: 'X-Men' },
   { label: 'Star Wars', logo: <StarWarsLogo size="sm" />, query: 'Star Wars' },
-  { label: 'Pixar', logo: <PixarLogo size="sm" />, query: 'Pixar' },
-  { label: 'Studio Ghibli', logo: <StudioGhibliLogo size="sm" />, query: 'Studio Ghibli' },
   { label: 'A24', logo: <A24Logo size="sm" />, query: 'A24' },
-  { label: 'Disney', logo: <DisneyLogo size="sm" />, query: 'Disney' },
   { label: 'Action', logo: <Flame className="w-3.5 h-3.5 text-orange-400" />, query: 'Action' },
   { label: 'Sci-Fi', logo: <Sparkles className="w-3.5 h-3.5 text-cyan-400" />, query: 'Sci-Fi' },
   { label: 'Christopher Nolan', logo: <Film className="w-3.5 h-3.5 text-purple-400" />, query: 'Christopher Nolan' },
@@ -118,6 +239,10 @@ function SearchContent() {
   const [executedQuery, setExecutedQuery] = useState(queryFromUrl);
   const [filterType, setFilterType] = useState<'all' | 'movie' | 'tv' | 'in_vault'>('all');
   const [sortBy, setSortBy] = useState<'relevance' | 'rating' | 'release_date' | 'title'>('relevance');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number | 'all'>(36);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const resultsTopRef = useRef<HTMLDivElement>(null);
 
   const [searchResult, setSearchResult] = useState<SmartSearchResult>({
     type: 'standard',
@@ -164,6 +289,8 @@ function SearchContent() {
           setSearchResult(saved.searchResult);
           setFilterType(saved.filterType || 'all');
           setSortBy(saved.sortBy || 'relevance');
+          if (saved.currentPage) setCurrentPage(saved.currentPage);
+          if (saved.pageSize) setPageSize(saved.pageSize);
           setHasSearched(true);
 
           if (!queryFromUrl && typeof window !== 'undefined') {
@@ -231,6 +358,7 @@ function SearchContent() {
 
     setInputQuery(trimmed);
     setExecutedQuery(trimmed);
+    setCurrentPage(1);
     setIsLoading(true);
     setHasSearched(true);
 
@@ -257,6 +385,8 @@ function SearchContent() {
           filterType,
           sortBy,
           scrollY: 0,
+          currentPage: 1,
+          pageSize,
         };
         sessionStorage.setItem(SEARCH_STATE_STORAGE_KEY, JSON.stringify(stateToSave));
       }
@@ -357,6 +487,68 @@ function SearchContent() {
     const vaultTmdbIds = new Set(libraryItems.map((li) => li.tmdb_id));
     return searchResult.items.filter((item) => vaultTmdbIds.has(item.id)).length;
   }, [searchResult.items, libraryItems]);
+
+  const totalItems = filteredAndSortedResults.length;
+  const totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(totalItems / (pageSize as number)));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedResults = useMemo(() => {
+    if (pageSize === 'all') return filteredAndSortedResults;
+    const start = (safeCurrentPage - 1) * (pageSize as number);
+    return filteredAndSortedResults.slice(start, start + (pageSize as number));
+  }, [filteredAndSortedResults, safeCurrentPage, pageSize]);
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    if (resultsTopRef.current) {
+      resultsTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 380, behavior: 'smooth' });
+    }
+  };
+
+  const handleLoadMoreCatalog = async () => {
+    if (!searchResult.entityInfo?.id || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const startPage = searchResult.entityInfo.lastFetchedPage || 15;
+      const additional = await loadMoreStudioCatalog(
+        String(searchResult.entityInfo.id),
+        startPage,
+        5
+      );
+      if (additional && additional.length > 0) {
+        setSearchResult((prev) => {
+          const map = new Map<string, TMDBMediaItem>();
+          prev.items.forEach((item) => {
+            map.set(`${item.media_type || (item.name ? 'tv' : 'movie')}_${item.id}`, item);
+          });
+          additional.forEach((item) => {
+            const key = `${item.media_type || (item.name ? 'tv' : 'movie')}_${item.id}`;
+            if (!map.has(key)) map.set(key, item);
+          });
+          const merged = Array.from(map.values()).sort(
+            (a, b) => (b.popularity || 0) - (a.popularity || 0)
+          );
+          return {
+            ...prev,
+            items: merged,
+            entityInfo: prev.entityInfo
+              ? {
+                  ...prev.entityInfo,
+                  totalTitles: merged.length,
+                  lastFetchedPage: startPage + 5,
+                }
+              : undefined,
+          };
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load more studio catalog:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -567,7 +759,10 @@ function SearchContent() {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
             <button
               type="button"
-              onClick={() => setFilterType('all')}
+              onClick={() => {
+                setFilterType('all');
+                setCurrentPage(1);
+              }}
               className={cn(
                 'px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0',
                 filterType === 'all'
@@ -579,7 +774,10 @@ function SearchContent() {
             </button>
             <button
               type="button"
-              onClick={() => setFilterType('movie')}
+              onClick={() => {
+                setFilterType('movie');
+                setCurrentPage(1);
+              }}
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0',
                 filterType === 'movie'
@@ -600,7 +798,10 @@ function SearchContent() {
             </button>
             <button
               type="button"
-              onClick={() => setFilterType('tv')}
+              onClick={() => {
+                setFilterType('tv');
+                setCurrentPage(1);
+              }}
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0',
                 filterType === 'tv'
@@ -622,7 +823,10 @@ function SearchContent() {
             {vaultItemsCount > 0 && (
               <button
                 type="button"
-                onClick={() => setFilterType('in_vault')}
+                onClick={() => {
+                  setFilterType('in_vault');
+                  setCurrentPage(1);
+                }}
                 className={cn(
                   'flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0',
                   filterType === 'in_vault'
@@ -644,7 +848,10 @@ function SearchContent() {
             </span>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => {
+                setSortBy(e.target.value as any);
+                setCurrentPage(1);
+              }}
               className="bg-[#121420] text-xs text-white border border-white/10 rounded-xl px-3 py-1.5 focus:outline-none focus:border-red-500 cursor-pointer"
             >
               <option value="relevance">Popularity / Relevance</option>
@@ -664,17 +871,65 @@ function SearchContent() {
           description="Check the spelling, try another title, search for Marvel or DC, or browse by actors and genres."
         />
       ) : filteredAndSortedResults.length > 0 ? (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-slate-400">
-              Found {filteredAndSortedResults.length} title
-              {filteredAndSortedResults.length === 1 ? '' : 's'}
-            </h2>
+        <div ref={resultsTopRef} className="scroll-mt-24 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-white/5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-white">
+                Found {filteredAndSortedResults.length} title
+                {filteredAndSortedResults.length === 1 ? '' : 's'}
+              </h2>
+              {pageSize !== 'all' && totalPages > 1 && (
+                <span className="text-xs text-slate-400">
+                  • Showing {(safeCurrentPage - 1) * (pageSize as number) + 1}–
+                  {Math.min(safeCurrentPage * (pageSize as number), filteredAndSortedResults.length)} (Page{' '}
+                  {safeCurrentPage} of {totalPages})
+                </span>
+              )}
+            </div>
+
+            {/* Items Per Page View Toggle */}
+            <div className="flex items-center gap-1 text-xs self-start sm:self-auto">
+              <span className="text-slate-400 text-[11px] font-medium mr-1">View:</span>
+              {[36, 72].map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => {
+                    setPageSize(size);
+                    setCurrentPage(1);
+                  }}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer',
+                    pageSize === size
+                      ? 'bg-red-600/25 border border-red-500/50 text-red-300 shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-transparent'
+                  )}
+                >
+                  {size} / page
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setPageSize('all');
+                  setCurrentPage(1);
+                }}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer',
+                  pageSize === 'all'
+                    ? 'bg-red-600/25 border border-red-500/50 text-red-300 shadow-sm'
+                    : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-transparent'
+                )}
+              >
+                All ({filteredAndSortedResults.length})
+              </button>
+            </div>
           </div>
+
           <div
             className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4"
             onClickCapture={() => {
-              // Persist exact scroll position and filter state when navigating to title
+              // Persist exact scroll position, page, and filter state when navigating to title
               try {
                 if (typeof window !== 'undefined') {
                   const raw = sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY);
@@ -687,6 +942,8 @@ function SearchContent() {
                         scrollY: window.scrollY || 0,
                         filterType,
                         sortBy,
+                        currentPage: safeCurrentPage,
+                        pageSize,
                       })
                     );
                   }
@@ -696,7 +953,7 @@ function SearchContent() {
               }
             }}
           >
-            {filteredAndSortedResults.map((item) => (
+            {paginatedResults.map((item) => (
               <MediaCard
                 key={`${item.media_type}-${item.id}`}
                 id={item.id}
@@ -708,6 +965,39 @@ function SearchContent() {
               />
             ))}
           </div>
+
+          {/* Pagination Controls */}
+          {pageSize !== 'all' && totalPages > 1 && (
+            <PaginationControls
+              currentPage={safeCurrentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          )}
+
+          {/* Load More Button for studios with huge catalogs like Disney */}
+          {searchResult.type === 'franchise' && searchResult.entityInfo?.hasMorePages && (
+            <div className="pt-4 pb-2 text-center">
+              <button
+                type="button"
+                disabled={isLoadingMore}
+                onClick={handleLoadMoreCatalog}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-blue-600/20 hover:from-red-600/35 hover:via-purple-600/35 hover:to-blue-600/35 border border-white/15 text-white font-semibold text-sm transition-all shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
+              >
+                {isLoadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-red-400" />
+                    <span>Loading more titles from catalog...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>Load 100 More Titles from Catalog</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       ) : !hasSearched ? (
         <div className="py-20 text-center max-w-md mx-auto text-slate-500 space-y-3">

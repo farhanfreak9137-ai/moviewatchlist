@@ -122,20 +122,30 @@ export async function hardDeleteLibraryItem(id: string): Promise<void> {
 
 // Cache TMDB metadata for offline access
 export async function setCachedMetadata(key: string, data: any, ttlSeconds: number = 86400 * 3): Promise<void> {
-  const now = Date.now();
-  await db.cached_metadata.put({
-    key,
-    data,
-    cached_at: now,
-    expires_at: now + ttlSeconds * 1000,
-  });
+  try {
+    if (typeof window === 'undefined' || !window.indexedDB) return;
+    const now = Date.now();
+    await db.cached_metadata.put({
+      key,
+      data,
+      cached_at: now,
+      expires_at: now + ttlSeconds * 1000,
+    });
+  } catch {
+    // Safe fallback if IndexedDB is missing or in SSR/test environment
+  }
 }
 
 export async function getCachedMetadata<T = any>(key: string): Promise<T | null> {
-  const entry = await db.cached_metadata.get(key);
-  if (!entry) return null;
-  // If expired, we can still return it offline, but mark it
-  return entry.data as T;
+  try {
+    if (typeof window === 'undefined' || !window.indexedDB) return null;
+    const entry = await db.cached_metadata.get(key);
+    if (!entry) return null;
+    // If expired, we can still return it offline, but mark it
+    return entry.data as T;
+  } catch {
+    return null;
+  }
 }
 
 // Clear only discovery cache, keeping library 100% intact

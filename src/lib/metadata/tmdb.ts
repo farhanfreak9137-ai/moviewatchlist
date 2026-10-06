@@ -172,7 +172,10 @@ const DEFAULT_TMDB_KEY = 'c56139572123d721aa33c2c33da73646';
 // Fetch helper with local Dexie caching and offline fallback
 async function fetchWithCache<T>(cacheKey: string, endpoint: string, ttlSeconds: number = 86400): Promise<T> {
   // 1. Try local cache first if offline
-  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  const isOnline =
+    typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean'
+      ? navigator.onLine
+      : true;
   const cached = await getCachedMetadata<T>(cacheKey);
 
   if (!isOnline && cached) {
@@ -183,9 +186,13 @@ async function fetchWithCache<T>(cacheKey: string, endpoint: string, ttlSeconds:
     // Check if user set custom TMDB API key in settings
     let apiKey = DEFAULT_TMDB_KEY;
     if (typeof window !== 'undefined') {
-      const customKeySetting = await db.app_settings.get('custom_tmdb_key');
-      if (customKeySetting?.value) {
-        apiKey = customKeySetting.value;
+      try {
+        const customKeySetting = await db.app_settings.get('custom_tmdb_key');
+        if (customKeySetting?.value) {
+          apiKey = customKeySetting.value;
+        }
+      } catch {
+        // Safe fallback to default key
       }
     }
 
@@ -372,6 +379,166 @@ export const tmdbService = {
       ...item,
       media_type: mediaType,
     }));
+  },
+
+  // Discover by companies returning pagination metadata (total_pages, total_results)
+  async discoverByCompaniesWithMeta(
+    companyIds: number[],
+    mediaType: 'movie' | 'tv' = 'movie',
+    page: number = 1
+  ): Promise<{ results: TMDBMediaItem[]; totalPages: number; totalResults: number }> {
+    if (!companyIds || companyIds.length === 0) {
+      return { results: [], totalPages: 0, totalResults: 0 };
+    }
+    const key = `discover_comp_${mediaType}_${companyIds.join('_')}_p${page}`;
+    const endpoint = `discover/${mediaType}?with_companies=${companyIds.join('|')}&sort_by=popularity.desc&page=${page}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[]; total_pages: number; total_results: number }>(
+      key,
+      endpoint,
+      14400
+    );
+    return {
+      results: (res.results || []).map((item) => ({
+        ...item,
+        media_type: mediaType,
+      })),
+      totalPages: res.total_pages || 1,
+      totalResults: res.total_results || 0,
+    };
+  },
+
+  // Discover all or deep multiple pages for production companies in parallel
+  async discoverAllByCompanies(
+    companyIds: number[],
+    mediaType: 'movie' | 'tv' = 'movie',
+    maxPages: number = 10,
+    startPage: number = 1
+  ): Promise<{ results: TMDBMediaItem[]; totalPages: number; totalResults: number; lastPageFetched: number }> {
+    if (!companyIds || companyIds.length === 0) {
+      return { results: [], totalPages: 0, totalResults: 0, lastPageFetched: 0 };
+    }
+    const firstPage = await this.discoverByCompaniesWithMeta(companyIds, mediaType, startPage);
+    const totalPages = firstPage.totalPages || 1;
+    const endPage = Math.min(totalPages, startPage + maxPages - 1);
+
+    if (endPage <= startPage) {
+      return {
+        results: firstPage.results,
+        totalPages,
+        totalResults: firstPage.totalResults,
+        lastPageFetched: startPage,
+      };
+    }
+
+    const pagePromises: Promise<{ results: TMDBMediaItem[]; totalPages: number; totalResults: number }>[] = [];
+    for (let p = startPage + 1; p <= endPage; p++) {
+      pagePromises.push(
+        this.discoverByCompaniesWithMeta(companyIds, mediaType, p).catch(() => ({
+          results: [],
+          totalPages: 0,
+          totalResults: 0,
+        }))
+      );
+    }
+
+    const otherPages = await Promise.all(pagePromises);
+    const combined = [...firstPage.results];
+    for (const op of otherPages) {
+      combined.push(...op.results);
+    }
+
+    return {
+      results: combined,
+      totalPages,
+      totalResults: firstPage.totalResults,
+      lastPageFetched: endPage,
+    };
+  },
+
+  // Fetch full franchise collection parts (e.g. X-Men, Wolverine, Deadpool)
+  async getCollection(collectionId: number): Promise<TMDBMediaItem[]> {
+    const key = `collection_${collectionId}`;
+    const endpoint = `collection/${collectionId}`;
+    try {
+      const res = await fetchWithCache<{ parts: TMDBMediaItem[] }>(key, endpoint, 86400 * 7);
+      return (res.parts || []).map((item) => ({
+        ...item,
+        media_type: 'movie' as MediaType,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  // Discover multiple pages by genres
+  async discoverAllByGenres(
+    genreIds: number[],
+    mediaType: 'movie' | 'tv' = 'movie',
+    maxPages: number = 5
+  ): Promise<TMDBMediaItem[]> {
+    if (!genreIds || genreIds.length === 0) return [];
+    const pagePromises = [];
+    for (let p = 1; p <= maxPages; p++) {
+      pagePromises.push(this.discoverByGenres(genreIds, mediaType, p).catch(() => []));
+    }
+    const pages = await Promise.all(pagePromises);
+    return pages.flat();
+  },
+
+  // Multi-search fetching multiple pages (e.g. up to 3 pages = 60 items)
+  async searchMultiPages(query: string, maxPages: number = 3): Promise<TMDBMediaItem[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const pagePromises = [];
+    for (let p = 1; p <= maxPages; p++) {
+      pagePromises.push(this.searchMulti(trimmed, p).catch(() => []));
+    }
+    const pages = await Promise.all(pagePromises);
+    const map = new Map<string, TMDBMediaItem>();
+    pages.flat().forEach((item) => {
+      const k = `${item.media_type}_${item.id}`;
+      if (!map.has(k)) map.set(k, item);
+    });
+    return Array.from(map.values());
+  },
+
+  // Discover multiple pages of Hindi / Bollywood cinema
+  async discoverAllHindi(
+    mediaType: 'movie' | 'tv' = 'movie',
+    maxPages: number = 5
+  ): Promise<TMDBMediaItem[]> {
+    const pagePromises = [];
+    for (let p = 1; p <= maxPages; p++) {
+      pagePromises.push(this.getTrendingHindi(mediaType, p).catch(() => []));
+    }
+    const pages = await Promise.all(pagePromises);
+    return pages.flat();
+  },
+
+  // Discover Anime (Japanese animation movies or series across multiple pages)
+  async discoverAllAnime(
+    mediaType: 'movie' | 'tv' = 'movie',
+    maxPages: number = 8,
+    startPage: number = 1
+  ): Promise<TMDBMediaItem[]> {
+    const pagePromises = [];
+    const endPage = startPage + maxPages - 1;
+    for (let p = startPage; p <= endPage; p++) {
+      const key = `discover_anime_${mediaType}_p${p}`;
+      const endpoint = `discover/${mediaType}?with_genres=16&with_original_language=ja&sort_by=popularity.desc&page=${p}`;
+      pagePromises.push(
+        fetchWithCache<{ results: TMDBMediaItem[] }>(key, endpoint, 14400)
+          .then((res) =>
+            (res.results || []).map((item) => ({
+              ...item,
+              media_type: mediaType,
+            }))
+          )
+          .catch(() => [])
+      );
+    }
+    const pages = await Promise.all(pagePromises);
+    return pages.flat();
   },
 
   // Discover by genres (e.g. Action, Sci-Fi, Horror, Animation)

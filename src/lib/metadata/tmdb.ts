@@ -282,6 +282,53 @@ export const tmdbService = {
     return fetchWithCache<{ episodes: EpisodeInfo[] }>(key, endpoint, 86400 * 7);
   },
 
+  // Recommendations & Similar titles
+  async getRecommendations(id: number, mediaType: MediaType = 'movie'): Promise<TMDBMediaItem[]> {
+    const key = `recommendations_${mediaType}_${id}`;
+    try {
+      const res = await fetchWithCache<{ results: TMDBMediaItem[] }>(
+        key,
+        `${mediaType}/${id}/recommendations?page=1`,
+        86400 * 3
+      );
+      let items = (res.results || [])
+        .filter((item) => item.poster_path)
+        .map((item) => ({
+          ...item,
+          media_type: mediaType,
+        }));
+
+      // If recommendations has few results, supplement with /similar
+      if (items.length < 6) {
+        const simKey = `similar_${mediaType}_${id}`;
+        const simRes = await fetchWithCache<{ results: TMDBMediaItem[] }>(
+          simKey,
+          `${mediaType}/${id}/similar?page=1`,
+          86400 * 3
+        );
+        const simItems = (simRes.results || [])
+          .filter((item) => item.poster_path)
+          .map((item) => ({
+            ...item,
+            media_type: mediaType,
+          }));
+
+        const seen = new Set(items.map((i) => i.id));
+        for (const s of simItems) {
+          if (!seen.has(s.id)) {
+            items.push(s);
+            seen.add(s.id);
+          }
+        }
+      }
+
+      return items;
+    } catch (err) {
+      console.warn('Failed to fetch recommendations:', err);
+      return [];
+    }
+  },
+
   // Discover media by genre and quality preferences
   async discoverMedia(
     mediaType: 'movie' | 'tv',

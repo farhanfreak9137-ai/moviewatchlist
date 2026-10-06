@@ -31,6 +31,7 @@ import { TrailerModal } from '@/components/details/TrailerModal';
 import { StreamingProviders } from '@/components/details/StreamingProviders';
 import { UpNextEpisodeCard } from '@/components/details/UpNextEpisodeCard';
 import { FinancialPerformanceSection } from '@/components/details/FinancialPerformanceSection';
+import { MediaRow } from '@/components/media/MediaRow';
 
 function TitleDetailContent() {
   const searchParams = useSearchParams();
@@ -51,6 +52,7 @@ function TitleDetailContent() {
   const isInLibrary = !!libraryItem;
 
   const [metadata, setMetadata] = useState<TMDBDetailsResponse | null>(null);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -65,13 +67,17 @@ function TitleDetailContent() {
         setLoading(true);
         setError(null);
 
-        const details =
+        const detailsPromise =
           mediaType === 'movie'
-            ? await tmdbService.getMovieDetails(tmdbId)
-            : await tmdbService.getSeriesDetails(tmdbId);
+            ? tmdbService.getMovieDetails(tmdbId)
+            : tmdbService.getSeriesDetails(tmdbId);
+        const recsPromise = tmdbService.getRecommendations(tmdbId, mediaType).catch(() => []);
+
+        const [details, recs] = await Promise.all([detailsPromise, recsPromise]);
 
         if (isMounted) {
           setMetadata(details);
+          setRecommendations(recs || []);
         }
       } catch (err: any) {
         if (isMounted) {
@@ -508,6 +514,24 @@ function TitleDetailContent() {
                 }}
                 onRemove={handleRemove}
               />
+            )}
+
+            {/* "More Like This" Recommendations Carousel */}
+            {recommendations.length > 0 && (
+              <div className="pt-6 border-t border-white/10">
+                <MediaRow
+                  title="More Like This"
+                  subtitle={`Titles recommended for fans of ${title}`}
+                  items={recommendations.map((item) => ({
+                    id: item.id,
+                    title: item.title || item.name || '',
+                    mediaType: item.media_type || mediaType,
+                    posterPath: item.poster_path,
+                    releaseDate: item.release_date || item.first_air_date,
+                    voteAverage: item.vote_average,
+                  }))}
+                />
+              </div>
             )}
           </div>
         </div>

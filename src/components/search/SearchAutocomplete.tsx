@@ -24,6 +24,9 @@ import {
   StudioGhibliLogo,
   A24Logo,
   DisneyLogo,
+  DreamWorksLogo,
+  AnimeLogo,
+  WarnerBrosLogo,
 } from '@/components/icons/BrandLogos';
 
 function renderFranchiseIcon(id: string | number) {
@@ -44,6 +47,12 @@ function renderFranchiseIcon(id: string | number) {
       return <A24Logo size="sm" />;
     case 'disney':
       return <DisneyLogo size="sm" />;
+    case 'dreamworks':
+      return <DreamWorksLogo size="sm" />;
+    case 'anime':
+      return <AnimeLogo size="sm" />;
+    case 'warnerbros':
+      return <WarnerBrosLogo size="sm" />;
     default:
       return (
         <div className="w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0">

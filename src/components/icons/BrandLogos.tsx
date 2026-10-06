@@ -205,3 +205,72 @@ export function DisneyLogo({ className, size = 'md' }: LogoProps) {
     </div>
   );
 }
+
+/**
+ * Authentic DreamWorks Logo
+ */
+export function DreamWorksLogo({ className, size = 'md' }: LogoProps) {
+  const sizeClasses = {
+    sm: 'text-[9px] px-1.5 py-0.5',
+    md: 'text-[11px] px-2 py-0.5',
+    lg: 'text-xl px-3.5 py-1.5',
+  };
+
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center justify-center font-bold tracking-wider text-sky-200 bg-sky-950/80 border border-sky-400/40 rounded select-none shrink-0 font-serif',
+        sizeClasses[size],
+        className
+      )}
+    >
+      DREAMWORKS
+    </div>
+  );
+}
+
+/**
+ * Authentic Anime Universe Logo
+ */
+export function AnimeLogo({ className, size = 'md' }: LogoProps) {
+  const sizeClasses = {
+    sm: 'text-[9px] px-1.5 py-0.5',
+    md: 'text-[11px] px-2 py-0.5',
+    lg: 'text-xl px-3.5 py-1.5',
+  };
+
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center justify-center font-black tracking-wider text-pink-300 bg-gradient-to-r from-pink-950/90 via-purple-950/90 to-indigo-950/90 border border-pink-500/40 rounded select-none shrink-0 font-sans',
+        sizeClasses[size],
+        className
+      )}
+    >
+      ANIME アニメ
+    </div>
+  );
+}
+
+/**
+ * Authentic Warner Bros. Logo
+ */
+export function WarnerBrosLogo({ className, size = 'md' }: LogoProps) {
+  const sizeClasses = {
+    sm: 'w-4.5 h-4.5 text-[9px]',
+    md: 'w-6 h-6 text-[11px]',
+    lg: 'w-14 h-14 sm:w-16 sm:h-16 text-2xl font-black shadow-lg shadow-blue-900/40',
+  };
+
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center justify-center rounded-full bg-[#0047BA] text-white font-extrabold select-none shrink-0 border border-white/20',
+        sizeClasses[size],
+        className
+      )}
+    >
+      <span className="tracking-tighter">WB</span>
+    </div>
+  );
+}

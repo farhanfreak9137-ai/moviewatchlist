@@ -44,7 +44,7 @@ export function MediaCard({
   voteAverage,
   className,
 }: MediaCardProps) {
-  const { getItemByTmdbId, addToLibrary, updateItem, removeItem } = useLibrary();
+  const { getItemByTmdbId, addToLibrary, updateItem, removeItem, incrementEpisode } = useLibrary();
   const libraryItem = getItemByTmdbId(id, mediaType);
   const isInLibrary = !!libraryItem;
 
@@ -52,10 +52,25 @@ export function MediaCard({
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [addingStatus, setAddingStatus] = useState<WatchStatus | null>(null);
+  const [isIncrementing, setIsIncrementing] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   const posterUrl = getImageUrl(posterPath, 'w500');
   const year = releaseDate ? releaseDate.substring(0, 4) : '';
+
+  const handleQuickIncrementEpisode = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!libraryItem || libraryItem.media_type !== 'tv') return;
+    try {
+      setIsIncrementing(true);
+      await incrementEpisode(libraryItem.id);
+    } catch (err) {
+      console.error('Failed to increment episode:', err);
+    } finally {
+      setIsIncrementing(false);
+    }
+  };
 
   const handleSelectStatus = async (status: WatchStatus) => {
     try {
@@ -354,24 +369,63 @@ export function MediaCard({
 
         {/* Personal State Badge if in Library */}
         {isInLibrary ? (
-          <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsMenuOpen((prev) => !prev);
-              }}
-              className="flex items-center gap-1.5 cursor-pointer group/status"
-              title="Click to change status"
-            >
-              <StatusBadge status={libraryItem.status} size="sm" />
-              <SlidersHorizontal className="w-2.5 h-2.5 text-slate-500 group-hover/status:text-slate-300 transition-colors" />
-            </button>
-            {libraryItem.status === 'watching' && mediaType === 'tv' && libraryItem.current_season && (
-              <span className="text-[10px] font-mono text-slate-400">
-                S{libraryItem.current_season} E{libraryItem.current_episode || 0}
-              </span>
+          <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between gap-1">
+            {libraryItem.status === 'watching' && mediaType === 'tv' ? (
+              <div className="flex items-center justify-between w-full gap-1">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsMenuOpen((prev) => !prev);
+                  }}
+                  className="flex items-center gap-1.5 cursor-pointer group/status hover:opacity-90 transition-opacity min-w-0"
+                  title="Watching • Click to change status"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse shrink-0" />
+                  <span className="text-[10px] font-mono font-bold text-sky-300 bg-sky-500/15 border border-sky-500/30 px-1.5 py-0.5 rounded truncate">
+                    S{libraryItem.current_season || 1}:E{libraryItem.current_episode || 0}
+                  </span>
+                  <SlidersHorizontal className="w-2.5 h-2.5 text-slate-500 group-hover/status:text-slate-300 transition-colors shrink-0" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleQuickIncrementEpisode}
+                  disabled={isIncrementing}
+                  className="px-2 py-0.5 rounded-md bg-sky-500/25 hover:bg-sky-500/40 text-sky-200 hover:text-white border border-sky-500/40 text-[10px] font-mono font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0 shadow-sm"
+                  title="Mark next episode as watched (+1 Ep)"
+                >
+                  {isIncrementing ? (
+                    <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  ) : (
+                    <>
+                      <Plus className="w-2.5 h-2.5 stroke-[3]" />
+                      <span>1 Ep</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsMenuOpen((prev) => !prev);
+                  }}
+                  className="flex items-center gap-1.5 cursor-pointer group/status shrink-0"
+                  title="Click to change status"
+                >
+                  <StatusBadge status={libraryItem.status} size="sm" />
+                  <SlidersHorizontal className="w-2.5 h-2.5 text-slate-500 group-hover/status:text-slate-300 transition-colors" />
+                </button>
+                {libraryItem.current_season && mediaType === 'tv' && (
+                  <span className="text-[10px] font-mono text-slate-400">
+                    S{libraryItem.current_season} E{libraryItem.current_episode || 0}
+                  </span>
+                )}
+              </>
             )}
           </div>
         ) : (

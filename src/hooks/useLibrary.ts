@@ -185,6 +185,61 @@ export function useLibrary() {
     await updateItem(id, { rating });
   };
 
+  const incrementEpisode = async (
+    id: string
+  ): Promise<{ newSeason: number; newEpisode: number; isCompleted: boolean }> => {
+    const existing = await db.library_items.get(id);
+    if (!existing || existing.media_type !== 'tv') {
+      return { newSeason: 1, newEpisode: 1, isCompleted: false };
+    }
+
+    const currentSeason = existing.current_season || 1;
+    const currentEpisode = existing.current_episode || 0;
+
+    const seasonData = existing.seasons?.find((s) => s.season_number === currentSeason);
+    const maxEpInCurrentSeason = seasonData?.episode_count;
+
+    let nextSeason = currentSeason;
+    let nextEpisode = currentEpisode + 1;
+    let isCompleted = false;
+
+    if (maxEpInCurrentSeason && nextEpisode > maxEpInCurrentSeason) {
+      const hasNextSeason = existing.seasons?.some((s) => s.season_number === currentSeason + 1);
+      if (hasNextSeason) {
+        nextSeason = currentSeason + 1;
+        nextEpisode = 1;
+      } else {
+        isCompleted = true;
+      }
+    } else if (existing.number_of_episodes && (currentEpisode + 1) >= existing.number_of_episodes) {
+      isCompleted = true;
+    }
+
+    const updates: Partial<LibraryItem> = {
+      current_season: nextSeason,
+      current_episode: nextEpisode,
+      status: isCompleted ? 'completed' : 'watching',
+      finish_date: isCompleted ? new Date().toISOString().substring(0, 10) : existing.finish_date,
+    };
+
+    try {
+      const epKey = `${existing.id}_s${nextSeason}_e${nextEpisode}`;
+      await db.episode_progress.put({
+        id: epKey,
+        library_item_id: existing.id,
+        tmdb_id: existing.tmdb_id,
+        season_number: nextSeason,
+        episode_number: nextEpisode,
+        is_watched: true,
+        watched_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    } catch {}
+
+    await updateItem(id, updates);
+    return { newSeason: nextSeason, newEpisode: nextEpisode, isCompleted };
+  };
+
   return {
     libraryItems,
     isLoading,
@@ -198,5 +253,6 @@ export function useLibrary() {
     toggleFavorite,
     setStatus,
     setRating,
+    incrementEpisode,
   };
 }

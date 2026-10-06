@@ -21,7 +21,7 @@ export interface FinancialPerformance {
   formattedProfit: string; // e.g. "+$2.57B" or "-$82M"
   formattedMultiplier: string; // e.g. "8.2x"
   hasBoxOfficeData: boolean;
-  estimatedCrores?: string; // For Indian cinema context (approx ~₹2,500 Cr)
+  estimatedCrores?: string; // For Bangladeshi Taka context (approx ~৳2,500 Cr)
   tvMetrics?: {
     status?: string;
     seasonsCount?: number;
@@ -59,18 +59,24 @@ export function formatCurrencyFull(amount: number): string {
   return `${prefix}${Math.abs(amount).toLocaleString('en-US')}`;
 }
 
-// Convert USD to estimated INR Crores (1 USD ~ 83 INR, 1 Crore = 10M INR)
-export function getEstimatedInrCrores(usdAmount: number): string | undefined {
+// Convert USD to estimated Bangladeshi Taka Crores (1 USD ~ 122 BDT, 1 Crore = 10M BDT)
+export function getEstimatedBdtCrores(usdAmount: number): string | undefined {
   if (!usdAmount || usdAmount <= 0) return undefined;
-  // 1 USD ~ 83 INR. 1M USD = 8.3 Crores.
-  const crores = (usdAmount * 83) / 10_000_000;
+  // 1 USD ~ 122 BDT (Bangladeshi Taka). 1 Crore = 10,000,000 BDT.
+  const crores = (usdAmount * 122) / 10_000_000;
   if (crores >= 100) {
-    return `~₹${Math.round(crores).toLocaleString('en-IN')} Cr`;
+    return `~৳${Math.round(crores).toLocaleString('en-US')} Cr`;
   } else if (crores >= 1) {
-    return `~₹${crores.toFixed(1)} Cr`;
+    return `~৳${crores.toFixed(1)} Cr`;
+  } else if (crores >= 0.01) {
+    const lakh = (usdAmount * 122) / 100_000;
+    return `~৳${lakh.toFixed(1)} Lakh`;
   }
   return undefined;
 }
+
+// Backward-compatible alias
+export const getEstimatedInrCrores = getEstimatedBdtCrores;
 
 export function calculateMovieFinancials(
   budget: number = 0,

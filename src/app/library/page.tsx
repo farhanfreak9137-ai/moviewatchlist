@@ -7,6 +7,7 @@ import { LibraryItem, WatchStatus, MediaType } from '@/lib/types';
 import { MediaCard } from '@/components/media/MediaCard';
 import { LibraryItemRow } from '@/components/library/LibraryItemRow';
 import { EmptyState } from '@/components/library/EmptyState';
+import { DiceRollModal } from '@/components/library/DiceRollModal';
 import {
   BookmarkCheck,
   Search,
@@ -16,6 +17,7 @@ import {
   ArrowUpDown,
   X,
   Plus,
+  Dices,
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
@@ -36,6 +38,7 @@ function LibraryContent() {
   const [selectedRating, setSelectedRating] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortOption>('recently_added');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isDiceOpen, setIsDiceOpen] = useState(false);
 
   // Extract all unique genres from user's actual library items
   const availableGenres = useMemo(() => {
@@ -149,6 +152,16 @@ function LibraryContent() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsDiceOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-indigo-950/40 cursor-pointer active:scale-95"
+            title="Randomly pick a title from your watchlist"
+          >
+            <Dices className="w-4 h-4 animate-pulse" />
+            <span>Surprise Me</span>
+          </button>
+
           <Link
             href="/search"
             className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-lg shadow-red-900/30"
@@ -334,6 +347,14 @@ function LibraryContent() {
           ))}
         </div>
       )}
+
+      {/* Surprise Me / Dice Roll Randomizer Modal */}
+      <DiceRollModal
+        isOpen={isDiceOpen}
+        onClose={() => setIsDiceOpen(false)}
+        items={libraryItems}
+        availableGenres={availableGenres}
+      />
     </div>
   );
 }

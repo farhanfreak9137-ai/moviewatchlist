@@ -131,7 +131,7 @@ export function HeroBanner({ items, item }: HeroBannerProps) {
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="relative w-full rounded-2xl overflow-hidden mb-10 border border-white/10 bg-[#0e1017] shadow-2xl min-h-[380px] sm:min-h-[460px] flex items-end group"
+      className="relative w-full rounded-3xl overflow-hidden mb-10 border border-white/10 bg-[#0e1017] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.9)] min-h-[380px] sm:min-h-[460px] flex items-end group inner-glow"
     >
       {/* Cinematic Background Backdrops with smooth fade */}
       {bannerItems.map((item, idx) => {
@@ -163,14 +163,14 @@ export function HeroBanner({ items, item }: HeroBannerProps) {
           <button
             onClick={handlePrev}
             aria-label="Previous featured title"
-            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white backdrop-blur-md border border-white/10 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer shadow-lg hidden sm:flex items-center justify-center"
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white backdrop-blur-md border border-white/10 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer shadow-lg hidden sm:flex items-center justify-center tap-bounce"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={handleNext}
             aria-label="Next featured title"
-            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white backdrop-blur-md border border-white/10 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer shadow-lg hidden sm:flex items-center justify-center"
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white backdrop-blur-md border border-white/10 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer shadow-lg hidden sm:flex items-center justify-center tap-bounce"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -178,16 +178,16 @@ export function HeroBanner({ items, item }: HeroBannerProps) {
       )}
 
       {/* Content */}
-      <div className="relative z-10 p-4 sm:p-10 max-w-3xl w-full">
+      <div className="relative z-10 p-5 sm:p-10 max-w-3xl w-full">
         <div className="flex items-center gap-2 mb-2.5">
-          <span className="px-2.5 py-0.5 rounded-md bg-red-600/90 text-white text-[10px] sm:text-[11px] font-bold uppercase tracking-wider shadow-sm">
+          <span className="px-2.5 py-0.5 rounded-md bg-red-600 text-white text-[10px] sm:text-[11px] font-bold uppercase tracking-wider shadow-[0_0_12px_rgba(220,38,38,0.4)]">
             Trending Today
           </span>
           <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md border border-white/10 text-slate-300 text-[10px] sm:text-[11px] font-medium uppercase tracking-wider">
             {mediaType === 'movie' ? 'Movie' : 'Series'}
           </span>
           {activeItem.vote_average > 0 && (
-            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] sm:text-[11px] font-mono font-bold">
+            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] sm:text-[11px] font-mono font-bold shadow-sm">
               ★ {activeItem.vote_average.toFixed(1)}
             </span>
           )}
@@ -207,7 +207,7 @@ export function HeroBanner({ items, item }: HeroBannerProps) {
         <div className="flex flex-row items-center gap-2.5 w-full sm:w-auto mb-3">
           <Link
             href={`/title?mediaType=${mediaType}&id=${activeItem.id}`}
-            className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-slate-200 text-black font-semibold text-xs sm:text-sm transition-all shadow-xl flex items-center gap-2 cursor-pointer whitespace-nowrap active:scale-95"
+            className="flex-1 sm:flex-initial justify-center px-5 sm:px-6 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-black font-semibold text-xs sm:text-sm transition-all shadow-[0_4px_16px_rgba(255,255,255,0.2)] flex items-center gap-2 cursor-pointer whitespace-nowrap tap-bounce"
           >
             <Info className="w-4 h-4 shrink-0" />
             <span>View Details</span>
@@ -216,7 +216,7 @@ export function HeroBanner({ items, item }: HeroBannerProps) {
           {isInLibrary ? (
             <Link
               href={`/title?mediaType=${mediaType}&id=${activeItem.id}`}
-              className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold text-xs sm:text-sm flex items-center gap-2 backdrop-blur-md whitespace-nowrap active:scale-95"
+              className="flex-1 sm:flex-initial justify-center px-5 sm:px-6 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold text-xs sm:text-sm flex items-center gap-2 backdrop-blur-md whitespace-nowrap tap-bounce"
             >
               <Check className="w-4 h-4 stroke-[3] shrink-0" />
               <span>In Library ({libraryItem.status})</span>
@@ -225,7 +225,7 @@ export function HeroBanner({ items, item }: HeroBannerProps) {
             <button
               onClick={handleQuickAdd}
               disabled={isAdding}
-              className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-red-900/30 flex items-center gap-2 cursor-pointer whitespace-nowrap active:scale-95"
+              className="flex-1 sm:flex-initial justify-center px-5 sm:px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-[0_0_24px_rgba(229,9,20,0.45)] flex items-center gap-2 cursor-pointer whitespace-nowrap tap-bounce"
             >
               {isAdding ? (
                 <Loader2 className="w-4 h-4 animate-spin shrink-0" />

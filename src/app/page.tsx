@@ -510,15 +510,15 @@ export default function HomePage() {
       <HeroBanner items={heroItems} />
 
       {/* Discovery Hub Selector: All, Bollywood & Hindi, Hollywood & English, TV Series Hub */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-3xl bg-[#11131c]/90 border border-white/5 shadow-xl backdrop-blur-md">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-3xl glass-island border border-white/10 shadow-2xl inner-glow">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
           <button
             onClick={() => handleHubChange('all')}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
+              'flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce',
               activeHub === 'all'
-                ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                : 'bg-[#161825] text-slate-400 hover:text-white border border-white/5'
+                ? 'bg-red-600 text-white shadow-[0_4px_16px_rgba(229,9,20,0.45)]'
+                : 'bg-white/5 text-slate-400 hover:text-white border border-white/5 hover:bg-white/10'
             )}
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -528,10 +528,10 @@ export default function HomePage() {
           <button
             onClick={() => handleHubChange('hindi')}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
+              'flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce',
               activeHub === 'hindi'
-                ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-600/30'
-                : 'bg-[#161825] text-slate-400 hover:text-white border border-white/5'
+                ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-[0_4px_16px_rgba(217,119,6,0.45)]'
+                : 'bg-white/5 text-slate-400 hover:text-white border border-white/5 hover:bg-white/10'
             )}
           >
             <span className="text-sm">🇮🇳</span>
@@ -541,10 +541,10 @@ export default function HomePage() {
           <button
             onClick={() => handleHubChange('english')}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
+              'flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce',
               activeHub === 'english'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-[#161825] text-slate-400 hover:text-white border border-white/5'
+                ? 'bg-blue-600 text-white shadow-[0_4px_16px_rgba(37,99,235,0.45)]'
+                : 'bg-white/5 text-slate-400 hover:text-white border border-white/5 hover:bg-white/10'
             )}
           >
             <Film className="w-3.5 h-3.5" />
@@ -554,10 +554,10 @@ export default function HomePage() {
           <button
             onClick={() => handleHubChange('tv')}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0',
+              'flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce',
               activeHub === 'tv'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
-                : 'bg-[#161825] text-slate-400 hover:text-white border border-white/5'
+                ? 'bg-purple-600 text-white shadow-[0_4px_16px_rgba(147,51,234,0.45)]'
+                : 'bg-white/5 text-slate-400 hover:text-white border border-white/5 hover:bg-white/10'
             )}
           >
             <Tv className="w-3.5 h-3.5" />
@@ -572,7 +572,7 @@ export default function HomePage() {
                 triggerHaptic('medium');
                 setIsDiceOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-gradient-to-r from-red-600/20 to-purple-600/20 hover:from-red-600/30 hover:to-purple-600/30 border border-red-500/30 text-white text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-sm"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-red-600/20 to-purple-600/20 hover:from-red-600/30 hover:to-purple-600/30 border border-red-500/30 text-white text-xs font-semibold transition-all tap-bounce cursor-pointer shadow-[0_0_16px_rgba(229,9,20,0.2)]"
               title="Can't decide? Roll the WatchVault dice"
             >
               <Dices className="w-3.5 h-3.5 text-red-400 animate-pulse" />

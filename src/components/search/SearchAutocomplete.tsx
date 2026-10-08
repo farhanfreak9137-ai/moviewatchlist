@@ -144,7 +144,7 @@ export function SearchAutocomplete({
   return (
     <div
       ref={containerRef}
-      className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#121420]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden divide-y divide-white/5 animate-in fade-in slide-in-from-top-2 duration-150"
+      className="absolute top-full left-0 right-0 mt-2 z-50 glass-island rounded-2xl shadow-[0_24px_60px_-8px_rgba(0,0,0,0.85)] border border-white/10 overflow-hidden divide-y divide-white/5 animate-in fade-in slide-in-from-top-2 duration-150"
     >
       {/* 1. "Did You Mean" Typo Banner */}
       {results.didYouMean && (

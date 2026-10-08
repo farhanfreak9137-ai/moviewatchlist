@@ -56,14 +56,13 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
     }
   }, [pathname, searchParams]);
 
-  // Keyboard shortcut: '/' focuses the top search bar
+  // Keyboard shortcuts: '/' or 'Cmd+K / Ctrl+K' focuses the search bar
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === '/' &&
-        document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA'
-      ) {
+      const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
+      const isSlash = e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA';
+
+      if (isCmdK || isSlash) {
         e.preventDefault();
         inputRef.current?.focus();
         inputRef.current?.select();
@@ -246,16 +245,17 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
             onKeyDown={handleKeyDown}
             placeholder="Search movies, series, studios, actors..."
             className={cn(
-              'w-full bg-[#12141e] border rounded-xl pl-10 text-sm text-white placeholder-slate-400 transition-all duration-200 outline-none',
+              'w-full bg-[#10121a]/90 backdrop-blur-md border rounded-xl pl-10 text-sm text-white placeholder-slate-400 transition-all duration-200 outline-none',
+              'inner-glow shadow-sm',
               '[&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-cancel-button]:hidden',
-              query ? 'pr-16' : 'pr-9',
+              query ? 'pr-16' : 'pr-14',
               isFocused
-                ? 'border-red-500/60 ring-2 ring-red-500/20 py-2 bg-[#141724]'
-                : 'border-white/10 hover:border-white/20 py-2'
+                ? 'border-red-500/60 ring-2 ring-red-500/20 py-2.5 bg-[#141724] glow-crimson-sm shadow-[0_0_24px_-4px_rgba(229,9,20,0.3)]'
+                : 'border-white/10 hover:border-white/20 py-2.5'
             )}
           />
 
-          {/* Right side items: Loader / Clear button / Slash shortcut */}
+          {/* Right side items: Loader / Clear button / Shortcut badge */}
           <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
             {isLoading ? (
               <Loader2 className="w-4 h-4 text-red-400 animate-spin" />
@@ -268,22 +268,22 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
                     setAutocompleteResults({ titles: [], actors: [], franchises: [], genres: [] });
                     inputRef.current?.focus();
                   }}
-                  className="p-1 text-slate-400 hover:text-white rounded-md transition-colors cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-white rounded-md transition-colors cursor-pointer tap-bounce"
                   title="Clear search"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="submit"
-                  className="p-1 text-slate-400 hover:text-red-400 rounded-md transition-colors cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-red-400 rounded-md transition-colors cursor-pointer tap-bounce"
                   title="Search"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </>
             ) : (
-              <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-white/5 border border-white/10 rounded text-slate-400 pointer-events-none">
-                /
+              <kbd className="hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-mono font-medium bg-white/5 border border-white/10 rounded-md text-slate-400 pointer-events-none shadow-sm">
+                <span>⌘</span>K
               </kbd>
             )}
           </div>

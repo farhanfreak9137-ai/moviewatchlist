@@ -198,7 +198,7 @@ export function MediaCard({
   return (
     <div
       className={cn(
-        'group relative flex flex-col rounded-xl overflow-hidden bg-[#10121a] border border-white/5 hover:border-white/20 transition-all duration-300 hover:shadow-2xl hover:shadow-black/60',
+        'group relative flex flex-col rounded-2xl overflow-hidden bg-[#10121a] border border-white/10 hover:border-red-500/35 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.9),0_0_24px_-6px_rgba(229,9,20,0.25)] inner-glow tap-bounce',
         className
       )}
     >
@@ -346,10 +346,10 @@ export function MediaCard({
           type="button"
           onClick={openStatusPicker}
           className={cn(
-            'absolute top-2 right-2 p-1.5 rounded-full transition-all shadow-lg cursor-pointer z-10',
+            'absolute top-2 right-2 p-1.5 rounded-full transition-all duration-200 cursor-pointer z-10 tap-bounce',
             isInLibrary
-              ? 'bg-emerald-600/90 hover:bg-emerald-500 text-white ring-1 ring-emerald-400/50'
-              : 'bg-black/60 hover:bg-red-600 text-white border border-white/20 opacity-85 group-hover:opacity-100 hover:scale-110'
+              ? 'bg-emerald-500/90 hover:bg-emerald-400 text-white shadow-[0_0_14px_rgba(16,185,129,0.55)] ring-1 ring-emerald-300/40'
+              : 'bg-black/60 hover:bg-red-600 text-white border border-white/25 backdrop-blur-md opacity-90 group-hover:opacity-100 hover:scale-110 shadow-lg'
           )}
           title={isInLibrary ? `In Vault (${libraryItem?.status}) - Tap to change` : 'Add to My Library'}
         >
@@ -396,8 +396,8 @@ export function MediaCard({
               </span>
             </div>
           ) : isInLibrary && libraryItem.rating > 0 ? (
-            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/90 text-black font-bold text-[11px] shadow">
-              <Star className="w-3 h-3 fill-black text-black shrink-0" />
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold text-[11px] border border-amber-500/40 backdrop-blur-md shadow-sm">
+              <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
               <span>{libraryItem.rating}/10</span>
             </div>
           ) : voteAverage ? (
@@ -408,10 +408,10 @@ export function MediaCard({
                   ? 'bg-rose-950/80 border-rose-500/40 text-rose-300'
                   : financial?.verdict === 'blockbuster' || financial?.verdict === 'hit'
                   ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300'
-                  : 'bg-black/70 border-white/10 text-amber-400'
+                  : 'bg-amber-500/15 border-amber-500/30 text-amber-300 shadow-[0_2px_8px_rgba(245,158,11,0.15)]'
               )}
             >
-              <Star className="w-3 h-3 fill-current text-current shrink-0" />
+              <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
               <span className="font-bold">{voteAverage.toFixed(1)}</span>
               {financial?.verdict && financial.verdict !== 'unknown' && (
                 <>

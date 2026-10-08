@@ -176,7 +176,7 @@ function LibraryContent() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 border-b border-white/5">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar p-1.5 rounded-2xl glass-card border border-white/5">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -184,16 +184,16 @@ function LibraryContent() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer',
+                'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer tap-bounce',
                 isActive
-                  ? 'bg-red-600 text-white shadow-md shadow-red-950/40'
-                  : 'bg-[#10121a] hover:bg-white/5 text-slate-400 hover:text-slate-200 border border-white/5'
+                  ? 'bg-red-600 text-white shadow-[0_2px_14px_rgba(229,9,20,0.45)]'
+                  : 'hover:bg-white/5 text-slate-400 hover:text-slate-200'
               )}
             >
               <span>{tab.label}</span>
               <span
                 className={cn(
-                  'px-1.5 py-0.2 rounded-full font-mono text-[10px]',
+                  'px-1.5 py-0.5 rounded-full font-mono text-[10px] transition-colors',
                   isActive ? 'bg-white/20 text-white' : 'bg-white/5 text-slate-400'
                 )}
               >
@@ -205,16 +205,16 @@ function LibraryContent() {
       </div>
 
       {/* Search, Filters, and View Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-2xl bg-[#10121a] border border-white/5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3.5 rounded-2xl glass-card border border-white/10 inner-glow">
         {/* Search within library */}
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Filter library by title, cast, or note..."
-            className="w-full bg-[#181a24] text-xs text-white pl-9 pr-8 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-red-500 placeholder-slate-500"
+            className="w-full bg-[#141724] text-xs text-white pl-9 pr-8 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-red-500/60 focus:ring-1 focus:ring-red-500/20 placeholder-slate-400 inner-glow transition-all"
           />
           {searchQuery && (
             <button

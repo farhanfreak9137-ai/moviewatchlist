@@ -50,18 +50,21 @@ export function MediaRow({ title, subtitle, action, items, emptyMessage, isLoadi
     return (
       <section className="mb-10 relative group">
         <div className="flex items-end justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">{title}</h2>
-            {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+          <div className="flex items-center gap-2.5">
+            <span className="w-1.5 h-5 bg-red-600 rounded-full shadow-[0_0_10px_#ef4444] shrink-0" />
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-white">{title}</h2>
+              {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+            </div>
           </div>
           {action}
         </div>
         <div className="flex gap-4 overflow-hidden -mx-4 px-4 sm:mx-0 sm:px-0">
           {[1, 2, 3, 4, 5, 6].map((n) => (
             <div key={n} className="w-[150px] sm:w-[180px] md:w-[200px] shrink-0">
-              <div className="aspect-[2/3] w-full rounded-xl bg-white/5 animate-pulse border border-white/5 mb-3" />
-              <div className="h-3.5 w-3/4 bg-white/10 rounded animate-pulse mb-1.5" />
-              <div className="h-3 w-1/2 bg-white/5 rounded animate-pulse" />
+              <div className="aspect-[2/3] w-full rounded-2xl bg-[#141724] shimmer-sweep border border-white/5 mb-3" />
+              <div className="h-3.5 w-3/4 bg-white/10 rounded-md shimmer-sweep mb-1.5" />
+              <div className="h-3 w-1/2 bg-white/5 rounded-md shimmer-sweep" />
             </div>
           ))}
         </div>
@@ -74,13 +77,16 @@ export function MediaRow({ title, subtitle, action, items, emptyMessage, isLoadi
     return (
       <section className="mb-10">
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-white">{title}</h2>
-            {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+          <div className="flex items-center gap-2.5">
+            <span className="w-1.5 h-5 bg-red-600 rounded-full shadow-[0_0_10px_#ef4444] shrink-0" />
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-white">{title}</h2>
+              {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+            </div>
           </div>
           {action}
         </div>
-        <div className="p-8 rounded-2xl bg-[#10121a]/60 border border-white/5 text-center text-slate-400 text-sm">
+        <div className="p-8 rounded-2xl glass-card border border-white/5 text-center text-slate-400 text-sm">
           {emptyMessage}
         </div>
       </section>
@@ -90,9 +96,12 @@ export function MediaRow({ title, subtitle, action, items, emptyMessage, isLoadi
   return (
     <section className="mb-10 relative group">
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-white">{title}</h2>
-          {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+        <div className="flex items-center gap-2.5">
+          <span className="w-1.5 h-5 bg-red-600 rounded-full shadow-[0_0_10px_#ef4444] shrink-0" />
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-white">{title}</h2>
+            {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -102,14 +111,14 @@ export function MediaRow({ title, subtitle, action, items, emptyMessage, isLoadi
           <div className="hidden sm:flex items-center gap-1.5">
             <button
               onClick={() => scroll('left')}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 hover:border-white/20 transition-colors cursor-pointer"
+              className="p-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 border border-white/10 hover:border-white/25 transition-all cursor-pointer tap-bounce shadow-sm"
               aria-label="Scroll left"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => scroll('right')}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 hover:border-white/20 transition-colors cursor-pointer"
+              className="p-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 border border-white/10 hover:border-white/25 transition-all cursor-pointer tap-bounce shadow-sm"
               aria-label="Scroll right"
             >
               <ChevronRight className="w-4 h-4" />

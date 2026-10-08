@@ -140,7 +140,8 @@ export function FinancialPerformanceSection({
       {/* Financial Metrics 4-Card Grid */}
       {isMovie ? (
         hasBoxOfficeData ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5">
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5">
             {/* 1. Actual Amount Earned (Revenue) */}
             <div className="p-3.5 sm:p-4 rounded-2xl bg-black/40 border border-white/5 flex flex-col justify-between">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
@@ -246,7 +247,52 @@ export function FinancialPerformanceSection({
               </div>
             </div>
           </div>
-        ) : (
+
+          {/* Visual Box Office Gauge / Breakeven Bar */}
+          {budget > 0 && revenue > 0 && (
+            <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-2.5 mb-5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  Theatrical Breakeven Visualizer
+                </span>
+                <span className="text-[11px] font-mono text-slate-400">
+                  Rule of thumb: <strong className="text-white">~2.5x Budget</strong> to break even
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="relative w-full h-3.5 bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/10">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all duration-1000',
+                    isBlockbuster
+                      ? 'bg-gradient-to-r from-amber-500 to-yellow-400 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+                      : isHit
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+                      : isFlop
+                      ? 'bg-gradient-to-r from-rose-500 to-red-400 shadow-[0_0_12px_rgba(244,63,94,0.5)]'
+                      : 'bg-gradient-to-r from-sky-500 to-blue-400'
+                  )}
+                  style={{
+                    width: `${Math.min(100, Math.max(8, (revenue / (budget * 2.5)) * 100))}%`,
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                <span>Budget: {formattedBudget}</span>
+                <span className="text-amber-400/90">
+                  Est. Breakeven: {formatCurrencyFull(budget * 2.5)}
+                </span>
+                <span className={cn('font-bold', isFlop ? 'text-rose-400' : 'text-emerald-400')}>
+                  Box Office: {formattedRevenue}
+                </span>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
           <div className="p-4 rounded-2xl bg-black/30 border border-white/5 mb-5 flex items-center justify-between text-xs text-slate-400">
             <div className="flex items-center gap-2">
               <HelpCircle className="w-4 h-4 text-slate-400 shrink-0" />

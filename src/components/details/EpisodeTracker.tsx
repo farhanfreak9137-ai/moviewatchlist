@@ -126,8 +126,10 @@ export function EpisodeTracker({
   onProgressUpdate,
 }: EpisodeTrackerProps) {
   // Only valid seasons (exclude Season 0 specials from main heatmap unless only specials exist)
-  const regularSeasons = seasons.filter((s) => s.season_number > 0);
-  const targetSeasons = regularSeasons.length > 0 ? regularSeasons : seasons;
+  const targetSeasons = useMemo(() => {
+    const regular = (seasons || []).filter((s) => s.season_number > 0);
+    return regular.length > 0 ? regular : (seasons || []);
+  }, [seasons]);
 
   const [viewMode, setViewMode] = useState<'matrix' | 'graph' | 'list'>('matrix');
   const [allSeasonEpisodes, setAllSeasonEpisodes] = useState<Record<number, EpisodeInfo[]>>({});
@@ -202,7 +204,8 @@ export function EpisodeTracker({
     return () => {
       isMounted = false;
     };
-  }, [tvId, seasonsKey, targetSeasons]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tvId, seasonsKey]);
 
   // Toggle watched state
   const toggleEpisode = async (seasonNum: number, episodeNum: number) => {

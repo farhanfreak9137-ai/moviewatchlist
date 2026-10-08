@@ -507,7 +507,7 @@ export default function HomePage() {
       }}
     >
       {/* Hero Banner (Auto-rotating top trending titles) */}
-      <HeroBanner items={heroItems} />
+      <HeroBanner items={heroItems} isLoading={isDiscoveryLoading && heroItems.length === 0} />
 
       {/* Discovery Hub Selector: All, Bollywood & Hindi, Hollywood & English, TV Series Hub */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-3xl glass-island border border-white/10 shadow-2xl inner-glow">

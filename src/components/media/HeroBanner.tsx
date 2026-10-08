@@ -12,9 +12,10 @@ interface HeroBannerProps {
   items?: TMDBMediaItem[] | null;
   // Backward compatibility in case single item is passed
   item?: TMDBMediaItem | null;
+  isLoading?: boolean;
 }
 
-export function HeroBanner({ items, item }: HeroBannerProps) {
+export function HeroBanner({ items, item, isLoading }: HeroBannerProps) {
   const { getItemByTmdbId, addToLibrary } = useLibrary();
   const [isAdding, setIsAdding] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -40,7 +41,29 @@ export function HeroBanner({ items, item }: HeroBannerProps) {
   }, [bannerItems.length, isPaused]);
 
   if (bannerItems.length === 0) {
-    // Fallback banner when offline or loading initial metadata
+    if (isLoading) {
+      return (
+        <div className="relative w-full rounded-3xl overflow-hidden mb-10 border border-white/10 bg-[#0e1017] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.9)] min-h-[380px] sm:min-h-[460px] flex items-end p-5 sm:p-10 shimmer-sweep inner-glow">
+          <div className="relative z-10 max-w-3xl w-full space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-24 rounded-md bg-white/10" />
+              <div className="h-5 w-16 rounded-md bg-white/5" />
+            </div>
+            <div className="h-9 sm:h-12 w-3/4 max-w-lg rounded-xl bg-white/10" />
+            <div className="space-y-2 max-w-2xl">
+              <div className="h-3.5 w-full rounded-md bg-white/5" />
+              <div className="h-3.5 w-4/5 rounded-md bg-white/5" />
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <div className="h-10 w-32 rounded-xl bg-white/10" />
+              <div className="h-10 w-36 rounded-xl bg-white/5" />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Fallback banner ONLY when truly 0 items and not loading (e.g. offline with empty cache)
     return (
       <div className="relative w-full rounded-2xl overflow-hidden bg-gradient-to-r from-red-950/40 via-[#12141f] to-[#090a10] border border-white/10 p-8 sm:p-12 mb-10 shadow-2xl">
         <div className="max-w-2xl">

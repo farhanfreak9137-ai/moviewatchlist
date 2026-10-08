@@ -74,7 +74,7 @@ function TitleDetailContent() {
         }
       } catch (err: unknown) {
         if (isMounted) {
-          if (libraryItem) {
+          if (isInLibrary) {
             // If offline but in library, we have saved data
             setMetadata(null);
           } else {
@@ -90,7 +90,7 @@ function TitleDetailContent() {
     return () => {
       isMounted = false;
     };
-  }, [tmdbId, mediaType, libraryItem]);
+  }, [tmdbId, mediaType, isInLibrary]);
 
   const handleAddWithStatus = async (status: WatchStatus) => {
     if (!metadata || isAdding) return;

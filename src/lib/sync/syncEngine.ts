@@ -30,7 +30,7 @@ const PUSH_BATCH = 200;
 const PULL_PAGE = 500;
 const PULL_OVERLAP_MS = 10_000; // re-read a small window to never miss rows committed out of order
 
-const getSetting = async (key: string): Promise<string | null> => (await db.app_settings.get(key))?.value ?? null;
+const getSetting = async (key: string): Promise<string | null> => ((await db.app_settings.get(key))?.value as string) ?? null;
 const setSetting = (key: string, value: string | null) => db.app_settings.put({ key, value });
 
 class SyncEngine {
@@ -202,10 +202,10 @@ class SyncEngine {
       await setSetting(KEY_LAST_SYNCED, new Date().toISOString());
       this.lastError = false;
       return { success: true, pushed, pulled };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.warn('Sync cycle error (local changes are safe):', error);
       this.lastError = true;
-      return { success: false, pushed: 0, pulled: 0, error: error?.message || String(error) };
+      return { success: false, pushed: 0, pulled: 0, error: error instanceof Error ? error.message : String(error) };
     } finally {
       this.isSyncing = false;
       this.notify();
@@ -286,7 +286,7 @@ class SyncEngine {
 
   /** Applies downloaded rows, keeping whichever copy (local vs remote) was edited last. */
   private async applyRemote(
-    rows: Array<{ entity_type: string; entity_id: string; payload: any }>
+    rows: Array<{ entity_type: string; entity_id: string; payload: unknown }>
   ): Promise<number> {
     const libIncoming = rows.filter((r) => r.entity_type === 'library_item').map((r) => r.payload as LibraryItem);
     const epIncoming = rows.filter((r) => r.entity_type === 'episode_progress').map((r) => r.payload as EpisodeProgress);

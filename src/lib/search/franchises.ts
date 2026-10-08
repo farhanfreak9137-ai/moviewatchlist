@@ -1,5 +1,11 @@
 import { normalizeSearchString, damerauLevenshteinDistance } from './fuzzy';
 
+export interface FranchiseFilterItem {
+  title?: string;
+  name?: string;
+  overview?: string;
+}
+
 export interface FranchiseDefinition {
   id: string;
   name: string;
@@ -14,7 +20,7 @@ export interface FranchiseDefinition {
   language?: string;
   languages?: string[];
   isAnime?: boolean;
-  filterItems?: (item: any) => boolean;
+  filterItems?: (item: FranchiseFilterItem) => boolean;
   bannerGradient: string;
   badgeBorder: string;
   badgeText: string;
@@ -76,7 +82,7 @@ export const FRANCHISES: FranchiseDefinition[] = [
     queryKeywords: ['x-men', 'wolverine', 'deadpool', 'the new mutants', 'dark phoenix', 'logan', 'x-men 97', 'legion'],
     maxMoviePages: 6,
     maxTvPages: 4,
-    filterItems: (item: any) => {
+    filterItems: (item: FranchiseFilterItem) => {
       const title = (item.title || item.name || '').toLowerCase();
       const overview = (item.overview || '').toLowerCase();
       return (

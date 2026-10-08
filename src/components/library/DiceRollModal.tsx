@@ -1,13 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { LibraryItem, MediaType, WatchStatus } from '@/lib/types';
+import { LibraryItem } from '@/lib/types';
 import { useLibrary } from '@/hooks/useLibrary';
 import { getImageUrl } from '@/lib/metadata/tmdb';
 import { StatusBadge } from '@/components/media/StatusBadge';
 import {
   Dices,
-  Sparkles,
   Play,
   Check,
   RotateCcw,
@@ -16,7 +15,6 @@ import {
   Tv,
   Star,
   Clock,
-  ArrowRight,
   Filter,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -114,16 +112,10 @@ export function DiceRollModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Reset winner if candidates become 0
-  useEffect(() => {
-    if (candidates.length === 0) {
-      setWinner(null);
-    }
-  }, [candidates.length]);
-
   if (!isOpen) return null;
 
-  const currentDisplayItem = isRolling ? cyclingItem : winner;
+  const activeWinner = candidates.length === 0 ? null : winner;
+  const currentDisplayItem = isRolling ? cyclingItem : activeWinner;
   const posterUrl = currentDisplayItem
     ? getImageUrl(currentDisplayItem.poster_path, 'w500')
     : null;
@@ -174,7 +166,7 @@ export function DiceRollModal({
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
-                Can't decide what to watch? Let the dice roll your next pick!
+                Can&apos;t decide what to watch? Let the dice roll your next pick!
               </p>
             </div>
           </div>
@@ -276,7 +268,7 @@ export function DiceRollModal({
               </div>
               <h3 className="text-sm font-semibold text-slate-200">No titles match these filters</h3>
               <p className="text-xs text-slate-400 max-w-xs">
-                You don't have any {statusScope === 'all' ? '' : statusScope} titles matching this filter in your library.
+                You don&apos;t have any {statusScope === 'all' ? '' : statusScope} titles matching this filter in your library.
               </p>
               <button
                 type="button"

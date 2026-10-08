@@ -11,18 +11,12 @@ import { MediaRow } from '@/components/media/MediaRow';
 import { MediaCard } from '@/components/media/MediaCard';
 import {
   PlayCircle,
-  History,
   Sparkles,
   RefreshCw,
   AlertCircle,
   SlidersHorizontal,
   Film,
   Tv,
-  Flame,
-  Trophy,
-  DollarSign,
-  Globe,
-  Star,
   Dices,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
@@ -43,7 +37,6 @@ interface CachedDiscoveryData {
   activeHub: DiscoverHub;
   trendingMovies: TMDBMediaItem[];
   trendingTv: TMDBMediaItem[];
-  popularMovies: TMDBMediaItem[];
   popularTv: TMDBMediaItem[];
   trendingHindiMovies: TMDBMediaItem[];
   popularHindiMovies: TMDBMediaItem[];
@@ -150,9 +143,6 @@ export default function HomePage() {
   );
   const [trendingTv, setTrendingTv] = useState<TMDBMediaItem[]>(
     () => cachedDiscoveryFeeds?.trendingTv || []
-  );
-  const [popularMovies, setPopularMovies] = useState<TMDBMediaItem[]>(
-    () => cachedDiscoveryFeeds?.popularMovies || []
   );
   const [popularTv, setPopularTv] = useState<TMDBMediaItem[]>(
     () => cachedDiscoveryFeeds?.popularTv || []
@@ -279,7 +269,6 @@ export default function HomePage() {
         const [
           tMovies,
           tTv,
-          pMovies,
           pTv,
           hiTrendM,
           hiPopM,
@@ -292,7 +281,6 @@ export default function HomePage() {
         ] = await Promise.all([
           tmdbService.getTrending('movie', 'week').catch(() => []),
           tmdbService.getTrending('tv', 'week').catch(() => []),
-          tmdbService.getPopular('movie').catch(() => []),
           tmdbService.getPopular('tv').catch(() => []),
           tmdbService.getTrendingHindi('movie').catch(() => []),
           tmdbService.getMostPopularHindi('movie').catch(() => []),
@@ -307,7 +295,6 @@ export default function HomePage() {
         if (isMounted) {
           setTrendingMovies(tMovies as TMDBMediaItem[]);
           setTrendingTv(tTv as TMDBMediaItem[]);
-          setPopularMovies(pMovies as TMDBMediaItem[]);
           setPopularTv(pTv as TMDBMediaItem[]);
 
           setTrendingHindiMovies(hiTrendM as TMDBMediaItem[]);
@@ -395,7 +382,6 @@ export default function HomePage() {
             activeHub,
             trendingMovies: tMovies as TMDBMediaItem[],
             trendingTv: tTv as TMDBMediaItem[],
-            popularMovies: pMovies as TMDBMediaItem[],
             popularTv: pTv as TMDBMediaItem[],
             trendingHindiMovies: hiTrendM as TMDBMediaItem[],
             popularHindiMovies: hiPopM as TMDBMediaItem[],
@@ -409,9 +395,9 @@ export default function HomePage() {
             timestamp: Date.now(),
           };
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (isMounted) {
-          setDiscoveryError(err.message || 'Could not load discovery feeds');
+          setDiscoveryError((err instanceof Error ? err.message : String(err)) || 'Could not load discovery feeds');
         }
       } finally {
         if (isMounted) setIsDiscoveryLoading(false);
@@ -422,6 +408,7 @@ export default function HomePage() {
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update recommendations whenever library items become available
@@ -434,7 +421,7 @@ export default function HomePage() {
         }
       });
     }
-  }, [isLibraryLoading, libraryItems.length, activeHub]);
+  }, [isLibraryLoading, libraryItems, preferences, activeHub]);
 
   // Smart Hero Items: dynamically adjusted based on activeHub, recommendations, and fresh spotlight
   const heroItems = useMemo(() => {
@@ -459,7 +446,7 @@ export default function HomePage() {
 
     const seen = new Set<number>();
     const unique: TMDBMediaItem[] = [];
-    const startOffset = pool.length > 0 ? Math.floor(Math.random() * Math.min(pool.length, 3)) : 0;
+    const startOffset = pool.length > 0 ? (pool[0]?.id || 0) % Math.min(pool.length, 3) : 0;
     const reorderedPool = [...pool.slice(startOffset), ...pool.slice(0, startOffset)];
 
     for (const it of reorderedPool) {
@@ -477,17 +464,12 @@ export default function HomePage() {
     trendingMovies,
     trendingHindiMovies,
     trendingTv,
+    trendingHindiTv,
     popularHindiMovies,
     highestGrossingEnglish,
     popularHindiTv,
     popularEnglishTv,
   ]);
-
-  const favoriteGenreNames = useMemo(() => {
-    return (preferences.favoriteGenres || [])
-      .map((id) => POPULAR_GENRES.find((g) => g.id === id)?.name)
-      .filter(Boolean) as string[];
-  }, [preferences.favoriteGenres]);
 
   // Helper row mapper
   const createRow = (

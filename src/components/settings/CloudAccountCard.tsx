@@ -71,8 +71,8 @@ export function CloudAccountCard() {
           setMode('signin');
         }
       }
-    } catch (err: any) {
-      const msg: string = err?.message || 'Something went wrong';
+    } catch (err: unknown) {
+      const msg: string = (err instanceof Error ? err.message : String(err)) || 'Something went wrong';
       setError(
         /invalid login/i.test(msg)
           ? 'Wrong email or password.'

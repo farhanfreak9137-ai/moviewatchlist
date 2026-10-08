@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useLibrary } from '@/hooks/useLibrary';
 import { TMDBMediaItem, getImageUrl, tmdbService } from '@/lib/metadata/tmdb';
 import { StatusBadge } from './StatusBadge';
-import { Plus, Check, Info, Sparkles, Film, Loader2, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { Plus, Check, Info, Sparkles, Film, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 interface HeroBannerProps {
@@ -79,7 +79,6 @@ export function HeroBanner({ items, item }: HeroBannerProps) {
   const title = activeItem.title || activeItem.name || 'Featured Title';
   const libraryItem = getItemByTmdbId(activeItem.id, mediaType);
   const isInLibrary = !!libraryItem;
-  const backdropUrl = getImageUrl(activeItem.backdrop_path, 'original') || getImageUrl(activeItem.poster_path, 'original');
 
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();

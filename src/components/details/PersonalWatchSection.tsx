@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { LibraryItem, WatchStatus, MediaType } from '@/lib/types';
+import { LibraryItem, WatchStatus } from '@/lib/types';
 import { StarRating } from './StarRating';
 import {
   BookmarkCheck,
@@ -29,7 +29,12 @@ export function PersonalWatchSection({ item, onUpdate, onRemove }: PersonalWatch
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
-  const statuses: Array<{ value: WatchStatus; label: string; icon: any; color: string }> = [
+  const statuses: Array<{
+    value: WatchStatus;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    color: string;
+  }> = [
     { value: 'watching', label: 'Watching', icon: PlayCircle, color: 'hover:border-sky-500 hover:text-sky-400' },
     { value: 'completed', label: 'Completed', icon: CheckCircle2, color: 'hover:border-emerald-500 hover:text-emerald-400' },
     { value: 'planned', label: 'Plan to Watch', icon: Clock, color: 'hover:border-indigo-500 hover:text-indigo-400' },

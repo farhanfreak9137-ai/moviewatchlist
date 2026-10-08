@@ -7,13 +7,12 @@
 import { tmdbService, TMDBMediaItem, TMDBPersonResult, getImageUrl } from '../metadata/tmdb';
 import { LibraryItem, MediaType } from '../types';
 import { matchFranchise, matchGenre, FRANCHISES, GENRE_MAP, FranchiseDefinition, GenreDefinition } from './franchises';
-import { SEARCH_DICTIONARY, DictionaryEntry } from './searchDictionary';
+import { SEARCH_DICTIONARY } from './searchDictionary';
 import {
   findBestCorrection,
   normalizeSearchString,
   stringSimilarity,
   damerauLevenshteinDistance,
-  CorrectionCandidate,
 } from './fuzzy';
 
 export interface SmartSearchResult {
@@ -125,7 +124,7 @@ export async function executeSmartSearch(
     }
 
     // 3. FETCH MEDIA SEARCH CANDIDATES FIRST
-    let items = await tmdbService.searchMultiPages(query, 3);
+    const items = await tmdbService.searchMultiPages(query, 3);
 
     // Check if there is an exact or near-exact media title match
     const hasExactMediaTitleMatch = items.some((item) => {
@@ -394,7 +393,7 @@ export async function getSmartAutocomplete(
     try {
       const liveResults = await tmdbService.searchMultiRaw(query, 1);
       for (const item of liveResults.slice(0, 10)) {
-        const rawItem = item as any;
+        const rawItem = item as unknown as (TMDBPersonResult & { media_type?: string });
         if (rawItem.media_type === 'person') {
           if (!results.actors.some((a) => a.title.toLowerCase() === (rawItem.name || '').toLowerCase())) {
             results.actors.push({
@@ -464,7 +463,7 @@ async function resolveFranchiseSearch(
     }
   };
 
-  const tasks: Promise<any>[] = [];
+  const tasks: Promise<unknown>[] = [];
 
   // 1. Fetch using company IDs if available (deep parallel multi-page)
   if (franchise.companyIds && franchise.companyIds.length > 0) {

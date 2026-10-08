@@ -6,17 +6,11 @@ import { EmptyState } from '@/components/library/EmptyState';
 import {
   BarChart3,
   Film,
-  Tv,
   Clock,
   Star,
-  Heart,
   CheckCircle2,
-  PlayCircle,
-  Calendar,
-  Sparkles,
   Award,
 } from 'lucide-react';
-import { formatMinutes } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
 
 export default function StatsPage() {

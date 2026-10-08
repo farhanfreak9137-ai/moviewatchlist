@@ -1,5 +1,5 @@
 import { getCachedMetadata, setCachedMetadata, db } from '../db';
-import { MediaType, CastMember, SeasonInfo, EpisodeInfo } from '../types';
+import { MediaType, EpisodeInfo } from '../types';
 
 export interface TMDBMediaItem {
   id: number;
@@ -189,7 +189,7 @@ async function fetchWithCache<T>(cacheKey: string, endpoint: string, ttlSeconds:
       try {
         const customKeySetting = await db.app_settings.get('custom_tmdb_key');
         if (customKeySetting?.value) {
-          apiKey = customKeySetting.value;
+          apiKey = String(customKeySetting.value);
         }
       } catch {
         // Safe fallback to default key
@@ -291,7 +291,7 @@ export const tmdbService = {
         `${mediaType}/${id}/recommendations?page=1`,
         86400 * 3
       );
-      let items = (res.results || [])
+      const items = (res.results || [])
         .filter((item) => item.poster_path)
         .map((item) => ({
           ...item,

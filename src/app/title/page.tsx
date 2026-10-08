@@ -3,9 +3,9 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useLibrary } from '@/hooks/useLibrary';
-import { tmdbService, TMDBDetailsResponse, getImageUrl } from '@/lib/metadata/tmdb';
-import { MediaType, WatchStatus, LibraryItem } from '@/lib/types';
-import { formatMinutes, formatDate } from '@/lib/utils/format';
+import { tmdbService, TMDBDetailsResponse, TMDBMediaItem, getImageUrl } from '@/lib/metadata/tmdb';
+import { MediaType, WatchStatus } from '@/lib/types';
+import { formatMinutes } from '@/lib/utils/format';
 import { StatusBadge } from '@/components/media/StatusBadge';
 import { PersonalWatchSection } from '@/components/details/PersonalWatchSection';
 import { CastCarousel } from '@/components/details/CastCarousel';
@@ -13,20 +13,14 @@ import { EpisodeTracker } from '@/components/details/EpisodeTracker';
 import {
   Film,
   Tv,
-  Calendar,
   Clock,
   Star,
   Plus,
   Check,
   ChevronLeft,
-  Share2,
-  Heart,
   Loader2,
-  AlertCircle,
   Play,
 } from 'lucide-react';
-import Link from 'next/link';
-import { cn } from '@/lib/utils/cn';
 import { TrailerModal } from '@/components/details/TrailerModal';
 import { StreamingProviders } from '@/components/details/StreamingProviders';
 import { UpNextEpisodeCard } from '@/components/details/UpNextEpisodeCard';
@@ -45,14 +39,13 @@ function TitleDetailContent() {
     addToLibrary,
     updateItem,
     removeItem,
-    toggleFavorite,
   } = useLibrary();
 
   const libraryItem = getItemByTmdbId(tmdbId, mediaType);
   const isInLibrary = !!libraryItem;
 
   const [metadata, setMetadata] = useState<TMDBDetailsResponse | null>(null);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<TMDBMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -79,13 +72,13 @@ function TitleDetailContent() {
           setMetadata(details);
           setRecommendations(recs || []);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (isMounted) {
           if (libraryItem) {
             // If offline but in library, we have saved data
             setMetadata(null);
           } else {
-            setError(err.message || 'Failed to load title metadata');
+            setError(err instanceof Error ? err.message : 'Failed to load title metadata');
           }
         }
       } finally {
@@ -143,6 +136,31 @@ function TitleDetailContent() {
     (v) => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')
   ) || metadata?.videos?.results?.find((v) => v.site === 'YouTube');
   const trailerKey = trailer?.key || null;
+
+  if (loading && !libraryItem && !metadata) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+        <p className="text-sm text-slate-400">Loading title details...</p>
+      </div>
+    );
+  }
+
+  if (error && !libraryItem && !metadata) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
+        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          {error}
+        </div>
+        <button
+          onClick={() => router.back()}
+          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-medium cursor-pointer"
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="relative -mx-4 -mt-6 sm:-mx-6 lg:-mx-8">

@@ -18,11 +18,8 @@ import {
   HardDrive,
   Download,
   Upload,
-  Trash2,
   Key,
   Laptop,
-  Smartphone,
-  ShieldCheck,
   CheckCircle2,
   AlertTriangle,
   Database,
@@ -58,11 +55,12 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   // Import preview
-  const [importFile, setImportFile] = useState<any | null>(null);
+  const [importFile, setImportFile] = useState<{ library_items: LibraryItem[]; episode_progress?: unknown[] } | null>(null);
   const [importPreviewCount, setImportPreviewCount] = useState<number | null>(null);
 
   useEffect(() => {
-    setEditingDeviceName(deviceName);
+    const timer = setTimeout(() => setEditingDeviceName(deviceName), 0);
+    return () => clearTimeout(timer);
   }, [deviceName]);
 
   useEffect(() => {
@@ -78,7 +76,7 @@ export default function SettingsPage() {
       setDiscoveryCacheCount(cacheCount);
 
       const customKeySetting = await db.app_settings.get('custom_tmdb_key');
-      if (customKeySetting?.value) {
+      if (customKeySetting?.value && typeof customKeySetting.value === 'string') {
         setCustomKey(customKeySetting.value);
       }
 
@@ -100,8 +98,8 @@ export default function SettingsPage() {
       if (isOnline) {
         triggerSync();
       }
-    } catch (err: any) {
-      alert(`Failed to save preferences: ${err?.message}`);
+    } catch (err: unknown) {
+      alert(`Failed to save preferences: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -177,7 +175,7 @@ export default function SettingsPage() {
         }
         setImportFile(parsed);
         setImportPreviewCount(parsed.library_items.length);
-      } catch (err) {
+      } catch {
         alert('Failed to parse JSON file.');
       }
     };
@@ -201,15 +199,15 @@ export default function SettingsPage() {
 
       if (Array.isArray(importFile.episode_progress)) {
         for (const ep of importFile.episode_progress) {
-          await db.episode_progress.put({ ...ep, updated_at: now });
+          await db.episode_progress.put({ ...(ep as Record<string, unknown>), updated_at: now } as unknown as import('@/lib/types').EpisodeProgress);
         }
       }
 
       setImportFile(null);
       setImportPreviewCount(null);
       showToast(`Imported ${importFile.library_items.length} titles into library`);
-    } catch (err: any) {
-      alert(`Import failed: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 

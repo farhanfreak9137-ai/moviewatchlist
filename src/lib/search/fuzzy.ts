@@ -121,7 +121,6 @@ export function findBestCorrection(
 
     // Calculate edit distance
     const dist = damerauLevenshteinDistance(normQuery, normText);
-    const maxLen = Math.max(normQuery.length, normText.length);
     const similarity = stringSimilarity(normQuery, normText);
 
     // Allowed tolerance:

@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { ContentPreferences, MediaFocus, QualityFilter, ReleaseWindow } from '../types';
+import { ContentPreferences } from '../types';
 
 export interface GenreOption {
   id: number;

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
-import { Smartphone, Download, Check, Sparkles } from 'lucide-react';
+import { Smartphone, Download, Check } from 'lucide-react';
 
 export function InstallBanner() {
   const { isInstallable, isInstalled, triggerInstall } = usePWAInstall();

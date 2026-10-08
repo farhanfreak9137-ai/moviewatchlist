@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useLibrary } from '@/hooks/useLibrary';
 import { TMDBMediaItem } from '@/lib/metadata/tmdb';
@@ -21,6 +21,7 @@ import {
   removeRecentSearch,
   clearRecentSearches,
 } from '@/lib/search/recentSearches';
+import { MediaType } from '@/lib/types';
 import {
   Search,
   Film,
@@ -28,14 +29,11 @@ import {
   Loader2,
   X,
   Sparkles,
-  Shield,
   Tag,
   User,
   ArrowRight,
   BookmarkCheck,
   Flame,
-  Star,
-  CheckCircle2,
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
@@ -271,103 +269,81 @@ function SearchContent() {
     genres: [],
   });
   const [selectedAutoIndex, setSelectedAutoIndex] = useState(-1);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    return typeof window !== 'undefined' ? getRecentSearches() : [];
+  });
 
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load recent searches on mount
-  useEffect(() => {
-    setRecentSearches(getRecentSearches());
-  }, []);
+  // Execute full search and populate results
+  const handleExecuteSearch = useCallback(
+    async (
+      queryToRun: string,
+      forceOriginal = false,
+      explicitSearchType?: 'all' | 'person' | 'movie' | 'tv',
+      explicitPersonId?: number
+    ) => {
+      const trimmed = queryToRun.trim();
+      if (!trimmed) return;
 
-  // Restore previous search state when navigating back from title details
-  useEffect(() => {
-    try {
-      const raw = typeof window !== 'undefined' ? sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY) : null;
-      if (raw) {
-        const saved: SavedSearchState = JSON.parse(raw);
-        if (
-          saved &&
-          saved.searchResult?.items?.length > 0 &&
-          (!queryFromUrl || queryFromUrl.toLowerCase() === saved.query.toLowerCase())
-        ) {
-          setInputQuery(saved.inputQuery);
-          setExecutedQuery(saved.query);
-          setSearchResult(saved.searchResult);
-          setFilterType(saved.filterType || 'all');
-          setSortBy(saved.sortBy || 'relevance');
-          if (saved.currentPage) setCurrentPage(saved.currentPage);
-          if (saved.pageSize) setPageSize(saved.pageSize);
-          setHasSearched(true);
-
-          if (!queryFromUrl && typeof window !== 'undefined') {
-            window.history.replaceState(null, '', `/search?q=${encodeURIComponent(saved.query)}`);
-          }
-
-          if (saved.scrollY > 0) {
-            setTimeout(() => {
-              window.scrollTo({ top: saved.scrollY, behavior: 'instant' });
-            }, 60);
-          }
-          return;
-        }
-      }
-    } catch (err) {
-      console.error('Failed to restore search state:', err);
-    }
-
-    if (queryFromUrl) {
-      setInputQuery(queryFromUrl);
-      handleExecuteSearch(
-        queryFromUrl,
-        false,
-        typeFromUrl === 'person' ? 'person' : undefined,
-        personIdFromUrl ? Number(personIdFromUrl) : undefined
-      );
-    }
-  }, [queryFromUrl, typeFromUrl, personIdFromUrl]);
-
-  // Live autocomplete triggered starting from 1st letter, but NOT if search just completed
-  useEffect(() => {
-    const trimmed = inputQuery.trim();
-
-    if (!trimmed || (hasSearched && trimmed.toLowerCase() === executedQuery.toLowerCase())) {
-      setAutocompleteResults({ titles: [], actors: [], franchises: [], genres: [] });
-      setSelectedAutoIndex(-1);
-      return;
-    }
-
-    if (autocompleteTimeoutRef.current) {
-      clearTimeout(autocompleteTimeoutRef.current);
-    }
-
-    // Fast 80ms debounce so 1st letter is near instantaneous
-    autocompleteTimeoutRef.current = setTimeout(async () => {
-      const results = await getSmartAutocomplete(trimmed, libraryItems);
-      setAutocompleteResults(results);
-      setIsAutocompleteOpen(true);
-      setSelectedAutoIndex(-1);
-    }, 80);
-
-    return () => {
       if (autocompleteTimeoutRef.current) {
         clearTimeout(autocompleteTimeoutRef.current);
+        autocompleteTimeoutRef.current = null;
       }
-    };
-  }, [inputQuery, libraryItems, hasSearched, executedQuery]);
+      setIsAutocompleteOpen(false);
+      inputRef.current?.blur();
 
-  const flattenedList = useMemo(() => {
-    const list: Array<{ type: 'didYouMean' | 'item'; data: any }> = [];
-    if (autocompleteResults.didYouMean) {
-      list.push({ type: 'didYouMean', data: autocompleteResults.didYouMean });
-    }
-    autocompleteResults.franchises.forEach((i) => list.push({ type: 'item', data: i }));
-    autocompleteResults.genres.forEach((i) => list.push({ type: 'item', data: i }));
-    autocompleteResults.actors.forEach((i) => list.push({ type: 'item', data: i }));
-    autocompleteResults.titles.forEach((i) => list.push({ type: 'item', data: i }));
-    return list;
-  }, [autocompleteResults]);
+      setInputQuery(trimmed);
+      setExecutedQuery(trimmed);
+      setCurrentPage(1);
+      setIsLoading(true);
+      setHasSearched(true);
+
+      const activeType = explicitSearchType || (typeFromUrl === 'person' ? 'person' : undefined);
+      const activePersonId = explicitPersonId || (personIdFromUrl ? Number(personIdFromUrl) : undefined);
+
+      if (typeof window !== 'undefined') {
+        const url = activeType === 'person'
+          ? `/search?q=${encodeURIComponent(trimmed)}&type=person${activePersonId ? `&personId=${activePersonId}` : ''}`
+          : `/search?q=${encodeURIComponent(trimmed)}`;
+        window.history.replaceState(null, '', url);
+      }
+
+      // Save to recents
+      const updatedRecents = addRecentSearch(trimmed);
+      setRecentSearches(updatedRecents);
+
+      try {
+        const result = await executeSmartSearch(trimmed, {
+          libraryItems,
+          forceOriginal,
+          searchType: activeType,
+          personId: activePersonId,
+        });
+        setSearchResult(result);
+
+        if (typeof window !== 'undefined') {
+          const stateToSave: SavedSearchState = {
+            query: trimmed,
+            inputQuery: trimmed,
+            searchResult: result,
+            filterType,
+            sortBy,
+            scrollY: 0,
+            currentPage: 1,
+            pageSize,
+          };
+          sessionStorage.setItem(SEARCH_STATE_STORAGE_KEY, JSON.stringify(stateToSave));
+        }
+      } catch (err) {
+        console.error('Search execution failed:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [typeFromUrl, personIdFromUrl, libraryItems, filterType, sortBy, pageSize]
+  );
 
   const handleSelectItem = (item: AutocompleteItem) => {
     if (autocompleteTimeoutRef.current) {
@@ -392,71 +368,115 @@ function SearchContent() {
     }
   };
 
-  // Execute full search and populate results
-  const handleExecuteSearch = async (
-    queryToRun: string,
-    forceOriginal = false,
-    explicitSearchType?: 'all' | 'person' | 'movie' | 'tv',
-    explicitPersonId?: number
-  ) => {
-    const trimmed = queryToRun.trim();
-    if (!trimmed) return;
+  // Restore previous search state when navigating back from title details
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const raw = typeof window !== 'undefined' ? sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY) : null;
+      if (raw) {
+        const saved: SavedSearchState = JSON.parse(raw);
+        if (
+          saved &&
+          saved.searchResult?.items?.length > 0 &&
+          (!queryFromUrl || queryFromUrl.toLowerCase() === saved.query.toLowerCase())
+        ) {
+          const restoreTimer = setTimeout(() => {
+            if (!isMounted) return;
+            setInputQuery(saved.inputQuery);
+            setExecutedQuery(saved.query);
+            setSearchResult(saved.searchResult);
+            setFilterType(saved.filterType || 'all');
+            setSortBy(saved.sortBy || 'relevance');
+            if (saved.currentPage) setCurrentPage(saved.currentPage);
+            if (saved.pageSize) setPageSize(saved.pageSize);
+            setHasSearched(true);
+
+            if (!queryFromUrl && typeof window !== 'undefined') {
+              window.history.replaceState(null, '', `/search?q=${encodeURIComponent(saved.query)}`);
+            }
+
+            if (saved.scrollY > 0) {
+              setTimeout(() => {
+                window.scrollTo({ top: saved.scrollY, behavior: 'instant' });
+              }, 60);
+            }
+          }, 0);
+          return () => {
+            isMounted = false;
+            clearTimeout(restoreTimer);
+          };
+        }
+      }
+    } catch (err) {
+      console.error('Failed to restore search state:', err);
+    }
+
+    if (queryFromUrl) {
+      const runTimer = setTimeout(() => {
+        if (!isMounted) return;
+        setInputQuery(queryFromUrl);
+        handleExecuteSearch(
+          queryFromUrl,
+          false,
+          typeFromUrl === 'person' ? 'person' : undefined,
+          personIdFromUrl ? Number(personIdFromUrl) : undefined
+        );
+      }, 0);
+      return () => {
+        isMounted = false;
+        clearTimeout(runTimer);
+      };
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [queryFromUrl, typeFromUrl, personIdFromUrl, handleExecuteSearch]);
+
+  // Live autocomplete triggered starting from 1st letter, but NOT if search just completed
+  useEffect(() => {
+    const trimmed = inputQuery.trim();
+
+    if (!trimmed || (hasSearched && trimmed.toLowerCase() === executedQuery.toLowerCase())) {
+      const resetTimer = setTimeout(() => {
+        setAutocompleteResults({ titles: [], actors: [], franchises: [], genres: [] });
+        setSelectedAutoIndex(-1);
+      }, 0);
+      return () => clearTimeout(resetTimer);
+    }
 
     if (autocompleteTimeoutRef.current) {
       clearTimeout(autocompleteTimeoutRef.current);
-      autocompleteTimeoutRef.current = null;
-    }
-    setIsAutocompleteOpen(false);
-    inputRef.current?.blur();
-
-    setInputQuery(trimmed);
-    setExecutedQuery(trimmed);
-    setCurrentPage(1);
-    setIsLoading(true);
-    setHasSearched(true);
-
-    const activeType = explicitSearchType || (typeFromUrl === 'person' ? 'person' : undefined);
-    const activePersonId = explicitPersonId || (personIdFromUrl ? Number(personIdFromUrl) : undefined);
-
-    if (typeof window !== 'undefined') {
-      const url = activeType === 'person'
-        ? `/search?q=${encodeURIComponent(trimmed)}&type=person${activePersonId ? `&personId=${activePersonId}` : ''}`
-        : `/search?q=${encodeURIComponent(trimmed)}`;
-      window.history.replaceState(null, '', url);
     }
 
-    // Save to recents
-    const updatedRecents = addRecentSearch(trimmed);
-    setRecentSearches(updatedRecents);
+    // Fast 80ms debounce so 1st letter is near instantaneous
+    autocompleteTimeoutRef.current = setTimeout(async () => {
+      const results = await getSmartAutocomplete(trimmed, libraryItems);
+      setAutocompleteResults(results);
+      setIsAutocompleteOpen(true);
+      setSelectedAutoIndex(-1);
+    }, 80);
 
-    try {
-      const result = await executeSmartSearch(trimmed, {
-        libraryItems,
-        forceOriginal,
-        searchType: activeType,
-        personId: activePersonId,
-      });
-      setSearchResult(result);
-
-      if (typeof window !== 'undefined') {
-        const stateToSave: SavedSearchState = {
-          query: trimmed,
-          inputQuery: trimmed,
-          searchResult: result,
-          filterType,
-          sortBy,
-          scrollY: 0,
-          currentPage: 1,
-          pageSize,
-        };
-        sessionStorage.setItem(SEARCH_STATE_STORAGE_KEY, JSON.stringify(stateToSave));
+    return () => {
+      if (autocompleteTimeoutRef.current) {
+        clearTimeout(autocompleteTimeoutRef.current);
       }
-    } catch (err) {
-      console.error('Search execution failed:', err);
-    } finally {
-      setIsLoading(false);
+    };
+  }, [inputQuery, libraryItems, hasSearched, executedQuery]);
+
+  const flattenedList = useMemo(() => {
+    const list: Array<
+      | { type: 'didYouMean'; data: string }
+      | { type: 'item'; data: AutocompleteItem }
+    > = [];
+    if (autocompleteResults.didYouMean) {
+      list.push({ type: 'didYouMean', data: autocompleteResults.didYouMean });
     }
-  };
+    autocompleteResults.franchises.forEach((i) => list.push({ type: 'item', data: i }));
+    autocompleteResults.genres.forEach((i) => list.push({ type: 'item', data: i }));
+    autocompleteResults.actors.forEach((i) => list.push({ type: 'item', data: i }));
+    autocompleteResults.titles.forEach((i) => list.push({ type: 'item', data: i }));
+    return list;
+  }, [autocompleteResults]);
 
   // Keyboard navigation across input and autocomplete popup
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -910,7 +930,7 @@ function SearchContent() {
             <select
               value={sortBy}
               onChange={(e) => {
-                setSortBy(e.target.value as any);
+                setSortBy(e.target.value as 'relevance' | 'rating' | 'release_date' | 'title');
                 setCurrentPage(1);
               }}
               className="bg-[#121420] text-xs text-white border border-white/10 rounded-xl px-3 py-1.5 focus:outline-none focus:border-red-500 cursor-pointer"
@@ -1019,7 +1039,7 @@ function SearchContent() {
                 key={`${item.media_type}-${item.id}`}
                 id={item.id}
                 title={item.title || item.name || 'Untitled'}
-                mediaType={(item.media_type || (item.name ? 'tv' : 'movie')) as any}
+                mediaType={(item.media_type === 'tv' || item.name ? 'tv' : 'movie') as MediaType}
                 posterPath={item.poster_path}
                 releaseDate={item.release_date || item.first_air_date}
                 voteAverage={item.vote_average}

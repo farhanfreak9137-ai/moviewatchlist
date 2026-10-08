@@ -91,7 +91,7 @@ export interface SyncQueueItem {
   entity_type: 'library_item' | 'episode_progress' | 'settings';
   entity_id: string;
   action: 'upsert' | 'delete';
-  payload: any;
+  payload: unknown;
   timestamp: string;
   status: 'pending' | 'syncing' | 'failed' | 'synced';
   error_message?: string;
@@ -100,23 +100,23 @@ export interface SyncQueueItem {
 
 export interface CachedMetadata {
   key: string;
-  data: any;
+  data: unknown;
   cached_at: number;
   expires_at: number;
 }
 
 export interface AppSetting {
   key: string;
-  value: any;
+  value: unknown;
 }
 
 export interface ConflictHistory {
   id: string;
   record_id: string;
   timestamp: string;
-  local_data: any;
-  remote_data: any;
-  resolved_data: any;
+  local_data: unknown;
+  remote_data: unknown;
+  resolved_data: unknown;
   description: string;
 }
 

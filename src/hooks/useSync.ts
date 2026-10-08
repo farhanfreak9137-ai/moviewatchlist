@@ -20,7 +20,7 @@ export function useSync() {
     getOrCreateDeviceId().then(async (id) => {
       setDeviceId(id);
       const nameSetting = await db.app_settings.get('device_name');
-      setDeviceName(nameSetting?.value || 'WatchVault Device');
+      setDeviceName((nameSetting?.value as string) || 'WatchVault Device');
     });
 
     const unsubscribe = syncEngine.subscribe((state, count, lastSync) => {

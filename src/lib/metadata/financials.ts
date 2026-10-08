@@ -328,24 +328,16 @@ export function useFinancials(
   voteCount: number = 0
 ): { financial: FinancialPerformance | null; loading: boolean } {
   const cacheKey = `fin_${mediaType}_${id}`;
-  const [financial, setFinancial] = useState<FinancialPerformance | null>(() => {
-    return memoryCache.get(cacheKey) || null;
-  });
-  const [loading, setLoading] = useState(!financial);
+  const [data, setData] = useState<FinancialPerformance | null>(() => memoryCache.get(cacheKey) || null);
+  const [loading, setLoading] = useState<boolean>(() => !memoryCache.has(cacheKey));
 
   useEffect(() => {
     let isMounted = true;
+    if (memoryCache.has(cacheKey)) return;
 
-    if (memoryCache.has(cacheKey)) {
-      setFinancial(memoryCache.get(cacheKey)!);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
     fetchFinancialPerformance(id, mediaType, voteAverage, voteCount).then((res) => {
       if (isMounted) {
-        setFinancial(res);
+        setData(res);
         setLoading(false);
       }
     });
@@ -355,5 +347,6 @@ export function useFinancials(
     };
   }, [id, mediaType, voteAverage, voteCount, cacheKey]);
 
-  return { financial, loading };
+  const currentFinancial = memoryCache.get(cacheKey) || data;
+  return { financial: currentFinancial, loading: !currentFinancial && loading };
 }

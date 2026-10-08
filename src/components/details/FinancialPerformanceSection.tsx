@@ -10,8 +10,6 @@ import {
   AlertTriangle,
   Tv,
   CheckCircle2,
-  PieChart,
-  BarChart3,
   HelpCircle,
 } from 'lucide-react';
 import {
@@ -61,7 +59,6 @@ export function FinancialPerformanceSection({
     formattedBudget,
     formattedProfit,
     formattedMultiplier,
-    roiMultiplier,
     roiPercentage,
     hasBoxOfficeData,
     estimatedCrores,

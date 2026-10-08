@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLibrary } from '@/hooks/useLibrary';
 import {
-  Film,
   Compass,
   BookmarkCheck,
   Search,

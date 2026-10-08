@@ -6,8 +6,17 @@ export interface ServerSyncItem {
   entityType: string;
   entityId: string;
   action: 'upsert' | 'delete';
-  payload: any;
+  payload: Record<string, unknown> | null;
   deviceId: string;
+  timestamp: string;
+  serverTimestamp: string;
+}
+
+export interface ServerChangeItem {
+  entityType: string;
+  entityId: string;
+  action: 'upsert' | 'delete';
+  payload: Record<string, unknown> | null;
   timestamp: string;
   serverTimestamp: string;
 }
@@ -50,7 +59,7 @@ class ServerSyncStore {
     entityType: string;
     entityId: string;
     action: 'upsert' | 'delete';
-    payload: any;
+    payload: Record<string, unknown> | null;
     deviceId: string;
     timestamp: string;
   }>): { acknowledgedIds: string[]; serverTimestamp: string } {
@@ -64,8 +73,10 @@ class ServerSyncStore {
 
       // Conflict handling: last-write-wins based on updated_at timestamp in payload or change timestamp
       if (existing) {
-        const existingTime = new Date(existing.payload?.updated_at || existing.timestamp).getTime();
-        const incomingTime = new Date(change.payload?.updated_at || change.timestamp).getTime();
+        const existingPayloadTime = (existing.payload?.updated_at as string | undefined);
+        const incomingPayloadTime = (change.payload?.updated_at as string | undefined);
+        const existingTime = new Date(existingPayloadTime || existing.timestamp).getTime();
+        const incomingTime = new Date(incomingPayloadTime || change.timestamp).getTime();
         if (incomingTime < existingTime) {
           // Incoming change is older than existing server version, skip overwriting but acknowledge
           acknowledgedIds.push(change.id);
@@ -84,12 +95,12 @@ class ServerSyncStore {
     return { acknowledgedIds, serverTimestamp };
   }
 
-  pullChanges(since: string | null, excludeDeviceId?: string | null): { changes: any[]; serverTimestamp: string } {
+  pullChanges(since: string | null, excludeDeviceId?: string | null): { changes: ServerChangeItem[]; serverTimestamp: string } {
     this.loadFromFile();
     const serverTimestamp = new Date().toISOString();
     const sinceTime = since ? new Date(since).getTime() : 0;
 
-    const list: any[] = [];
+    const list: ServerChangeItem[] = [];
     for (const item of this.items.values()) {
       const itemServerTime = new Date(item.serverTimestamp).getTime();
       if (itemServerTime > sinceTime) {

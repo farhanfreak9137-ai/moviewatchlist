@@ -11,10 +11,8 @@ import {
   AlertCircle,
   Loader2,
   Sparkles,
-  ArrowRight,
   Film,
 } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
 
 interface ParsedRow {
   title: string;
@@ -196,8 +194,8 @@ export function CsvImporter({ onImportComplete }: { onImportComplete?: (count: n
         }
 
         setParsedRows(parsed);
-      } catch (err: any) {
-        setError(`Failed to read CSV: ${err.message}`);
+      } catch (err: unknown) {
+        setError(`Failed to read CSV: ${err instanceof Error ? err.message : String(err)}`);
       }
     };
     reader.readAsText(selected);
@@ -212,7 +210,7 @@ export function CsvImporter({ onImportComplete }: { onImportComplete?: (count: n
     let skipped = 0;
 
     const deviceSetting = await db.app_settings.get('device_id');
-    const deviceId = deviceSetting?.value || 'device_primary';
+    const deviceId = (deviceSetting?.value as string) || 'device_primary';
 
     // Get current items in library to prevent duplicates
     const currentLibrary = await db.library_items.filter((item) => !item.is_deleted).toArray();

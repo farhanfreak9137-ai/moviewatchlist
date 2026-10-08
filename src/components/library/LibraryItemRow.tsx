@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { LibraryItem } from '@/lib/types';
 import { getImageUrl } from '@/lib/metadata/tmdb';
 import { StatusBadge } from '../media/StatusBadge';
-import { Star, Heart, Film, Tv, Calendar } from 'lucide-react';
+import { Star, Heart, Film, Tv } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 interface LibraryItemRowProps {

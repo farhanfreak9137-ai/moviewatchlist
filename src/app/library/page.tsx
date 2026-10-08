@@ -3,7 +3,6 @@
 import React, { useState, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useLibrary } from '@/hooks/useLibrary';
-import { LibraryItem, WatchStatus, MediaType } from '@/lib/types';
 import { MediaCard } from '@/components/media/MediaCard';
 import { LibraryItemRow } from '@/components/library/LibraryItemRow';
 import { EmptyState } from '@/components/library/EmptyState';
@@ -11,7 +10,6 @@ import { DiceRollModal } from '@/components/library/DiceRollModal';
 import {
   BookmarkCheck,
   Search,
-  Filter,
   LayoutGrid,
   Grid3X3,
   List,
@@ -34,7 +32,7 @@ function LibraryContent() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as LibraryTab) || 'all';
 
-  const { libraryItems, isLoading, stats, toggleFavorite } = useLibrary();
+  const { libraryItems, stats, toggleFavorite } = useLibrary();
 
   const [activeTab, setActiveTab] = useState<LibraryTab>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
@@ -338,7 +336,15 @@ function LibraryContent() {
           <EmptyState type="library" />
         ) : (
           <EmptyState
-            type={activeTab as any}
+            type={
+              activeTab === 'watching' ||
+              activeTab === 'completed' ||
+              activeTab === 'planned' ||
+              activeTab === 'dropped' ||
+              activeTab === 'favorites'
+                ? activeTab
+                : 'library'
+            }
             title={searchQuery ? 'No matching titles found' : undefined}
             description={
               searchQuery

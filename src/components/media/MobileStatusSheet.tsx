@@ -7,11 +7,9 @@ import {
   Play,
   CheckCircle2,
   XCircle,
-  Star,
   Heart,
   Trash2,
   X,
-  Loader2,
   Film,
   Tv,
 } from 'lucide-react';

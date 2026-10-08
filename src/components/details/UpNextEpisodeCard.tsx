@@ -5,8 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { tmdbService } from '@/lib/metadata/tmdb';
 import { SeasonInfo, EpisodeInfo } from '@/lib/types';
-import { Play, Check, Sparkles, Clock, Calendar } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
+import { Play, Check, Sparkles } from 'lucide-react';
 
 interface UpNextEpisodeCardProps {
   tvId: number;
@@ -22,7 +21,6 @@ export function UpNextEpisodeCard({
   onEpisodeWatched,
 }: UpNextEpisodeCardProps) {
   const [firstSeasonEpisodes, setFirstSeasonEpisodes] = useState<EpisodeInfo[]>([]);
-  const [loading, setLoading] = useState(false);
 
   // Live query for all watched episodes for this show from IndexedDB
   const watchedRecords = useLiveQuery(
@@ -71,15 +69,12 @@ export function UpNextEpisodeCard({
     async function loadSeasonData() {
       if (!tvId || !nextSeason) return;
       try {
-        setLoading(true);
         const res = await tmdbService.getSeriesSeason(tvId, nextSeason);
         if (isMounted) {
           setFirstSeasonEpisodes(res.episodes || []);
         }
       } catch (err) {
         console.warn('Failed to load season episodes for Up Next card:', err);
-      } finally {
-        if (isMounted) setLoading(false);
       }
     }
     loadSeasonData();

@@ -70,7 +70,7 @@ for (const table of [db.library_items, db.episode_progress] as const) {
 export async function getOrCreateDeviceId(): Promise<string> {
   if (typeof window === 'undefined') return 'server';
   const existing = await db.app_settings.get('device_id');
-  if (existing?.value) return existing.value;
+  if (existing?.value) return String(existing.value);
 
   const newId = `dev_${crypto.randomUUID()}`;
   await db.app_settings.put({ key: 'device_id', value: newId });
@@ -121,7 +121,7 @@ export async function hardDeleteLibraryItem(id: string): Promise<void> {
 }
 
 // Cache TMDB metadata for offline access
-export async function setCachedMetadata(key: string, data: any, ttlSeconds: number = 86400 * 3): Promise<void> {
+export async function setCachedMetadata(key: string, data: unknown, ttlSeconds: number = 86400 * 3): Promise<void> {
   try {
     if (typeof window === 'undefined' || !window.indexedDB) return;
     const now = Date.now();
@@ -136,7 +136,7 @@ export async function setCachedMetadata(key: string, data: any, ttlSeconds: numb
   }
 }
 
-export async function getCachedMetadata<T = any>(key: string): Promise<T | null> {
+export async function getCachedMetadata<T = unknown>(key: string): Promise<T | null> {
   try {
     if (typeof window === 'undefined' || !window.indexedDB) return null;
     const entry = await db.cached_metadata.get(key);

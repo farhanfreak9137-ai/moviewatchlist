@@ -11,12 +11,6 @@ interface LogoProps {
  * Signature red rectangle with white condensed uppercase MARVEL typography
  */
 export function MarvelLogo({ className, size = 'md' }: LogoProps) {
-  const heightClasses = {
-    sm: 'h-4 w-auto',
-    md: 'h-6 w-auto',
-    lg: 'h-10 sm:h-12 w-auto',
-  };
-
   return (
     <div
       className={cn(

@@ -93,7 +93,7 @@ export function useLibrary() {
 
   // Add new title from TMDB details
   const addToLibrary = async (
-    details: TMDBDetailsResponse,
+    details: Partial<TMDBDetailsResponse> & { id: number },
     mediaType: MediaType,
     initialStatus: WatchStatus = 'planned',
     initialRating: number = 0,

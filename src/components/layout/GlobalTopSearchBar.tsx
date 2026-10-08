@@ -36,7 +36,9 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
     genres: [],
   });
   const [selectedAutoIndex, setSelectedAutoIndex] = useState(-1);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    return typeof window !== 'undefined' ? getRecentSearches() : [];
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,14 +49,12 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
   useEffect(() => {
     if (pathname === '/search') {
       const q = searchParams.get('q') || '';
-      setQuery(q);
+      const timer = setTimeout(() => {
+        setQuery(q);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [pathname, searchParams]);
-
-  // Load recent searches
-  useEffect(() => {
-    setRecentSearches(getRecentSearches());
-  }, []);
 
   // Keyboard shortcut: '/' focuses the top search bar
   useEffect(() => {
@@ -96,9 +96,11 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
     const trimmed = query.trim();
 
     if (!trimmed) {
-      setAutocompleteResults({ titles: [], actors: [], franchises: [], genres: [] });
-      setSelectedAutoIndex(-1);
-      return;
+      const resetTimer = setTimeout(() => {
+        setAutocompleteResults({ titles: [], actors: [], franchises: [], genres: [] });
+        setSelectedAutoIndex(-1);
+      }, 0);
+      return () => clearTimeout(resetTimer);
     }
 
     if (debounceTimerRef.current) {
@@ -126,7 +128,10 @@ export function GlobalTopSearchBar({ className }: GlobalTopSearchBarProps) {
   }, [query, libraryItems]);
 
   const flattenedList = useMemo(() => {
-    const list: Array<{ type: 'didYouMean' | 'item'; data: any }> = [];
+    const list: Array<
+      | { type: 'didYouMean'; data: string }
+      | { type: 'item'; data: AutocompleteItem }
+    > = [];
     if (autocompleteResults.didYouMean) {
       list.push({ type: 'didYouMean', data: autocompleteResults.didYouMean });
     }

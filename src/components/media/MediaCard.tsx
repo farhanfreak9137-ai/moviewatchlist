@@ -172,7 +172,14 @@ export function MediaCard({
         message: `Removed "${title}" from vault`,
         undoAction: async () => {
           await addToLibrary(
-            { id: savedSnapshot.tmdb_id, title: savedSnapshot.title } as any,
+            {
+              id: savedSnapshot.tmdb_id,
+              title: savedSnapshot.title,
+              name: savedSnapshot.title,
+              overview: savedSnapshot.overview || '',
+              poster_path: savedSnapshot.poster_path,
+              backdrop_path: savedSnapshot.backdrop_path,
+            },
             savedSnapshot.media_type,
             savedSnapshot.status,
             savedSnapshot.rating,

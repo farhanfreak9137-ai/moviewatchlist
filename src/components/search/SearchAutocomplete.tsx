@@ -90,7 +90,11 @@ export function SearchAutocomplete({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Flatten items for unified index highlighting
-  const flattenedItems: Array<{ type: 'recent' | 'didYouMean' | 'item'; data: any }> = [];
+  const flattenedItems: Array<
+    | { type: 'recent'; data: string }
+    | { type: 'didYouMean'; data: string }
+    | { type: 'item'; data: AutocompleteItem }
+  > = [];
 
   if (results.didYouMean) {
     flattenedItems.push({ type: 'didYouMean', data: results.didYouMean });

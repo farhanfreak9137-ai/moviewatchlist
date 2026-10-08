@@ -12,15 +12,10 @@ import {
   List,
   Check,
   Star,
-  Tv,
-  Calendar,
-  Clock,
   Sparkles,
   TrendingUp,
   X,
   Award,
-  ChevronRight,
-  Info,
   Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
@@ -128,7 +123,6 @@ export function EpisodeTracker({
   libraryItemId,
   seasons = [],
   currentSeason = 1,
-  currentEpisode = 0,
   onProgressUpdate,
 }: EpisodeTrackerProps) {
   // Only valid seasons (exclude Season 0 specials from main heatmap unless only specials exist)
@@ -144,7 +138,8 @@ export function EpisodeTracker({
   const { showToast } = useToast();
 
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // Live query for checked episodes from IndexedDB
@@ -207,7 +202,7 @@ export function EpisodeTracker({
     return () => {
       isMounted = false;
     };
-  }, [tvId, seasonsKey]);
+  }, [tvId, seasonsKey, targetSeasons]);
 
   // Toggle watched state
   const toggleEpisode = async (seasonNum: number, episodeNum: number) => {
@@ -315,7 +310,7 @@ export function EpisodeTracker({
 
   // Compute stats across series (highest rated, lowest rated, overall average)
   const seriesStats = useMemo(() => {
-    let all: Array<{ episode: EpisodeInfo; season: number; rating: number }> = [];
+    const all: Array<{ episode: EpisodeInfo; season: number; rating: number }> = [];
     for (const [seasonStr, eps] of Object.entries(allSeasonEpisodes)) {
       const sNum = parseInt(seasonStr, 10);
       eps.forEach((ep) => {

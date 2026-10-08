@@ -3,7 +3,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { CheckCircle2, AlertCircle, Info, RotateCcw, X } from 'lucide-react';
 import { triggerHaptic } from '@/lib/utils/haptics';
-import { cn } from '@/lib/utils/cn';
 
 export interface ToastOptions {
   message: string;

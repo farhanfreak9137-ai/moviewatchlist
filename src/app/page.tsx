@@ -23,8 +23,11 @@ import {
   DollarSign,
   Globe,
   Star,
+  Dices,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { DiceRollModal } from '@/components/library/DiceRollModal';
+import { triggerHaptic } from '@/lib/utils/haptics';
 
 interface TailoredGenreRow {
   genreId: number;
@@ -133,6 +136,13 @@ export default function HomePage() {
     'Curated fresh picks for you • Refreshes on every visit'
   );
   const [isShufflingRecs, setIsShufflingRecs] = useState<boolean>(false);
+  const [isDiceOpen, setIsDiceOpen] = useState<boolean>(false);
+
+  const availableGenres = useMemo(() => {
+    const set = new Set<string>();
+    libraryItems.forEach((i) => i.genres?.forEach((g) => set.add(g)));
+    return Array.from(set).sort();
+  }, [libraryItems]);
 
   // Standard Feeds
   const [trendingMovies, setTrendingMovies] = useState<TMDBMediaItem[]>(
@@ -491,6 +501,7 @@ export default function HomePage() {
       key={key}
       title={title}
       subtitle={subtitle}
+      isLoading={isDiscoveryLoading && items.length === 0}
       items={items.map((m) => ({
         id: m.id,
         title: m.title || m.name || 'Untitled',
@@ -572,13 +583,29 @@ export default function HomePage() {
           </button>
         </div>
 
-        <Link
-          href="/settings"
-          className="text-slate-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 self-end sm:self-auto"
-        >
-          <span>Preferences</span>
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-        </Link>
+        <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
+          {libraryItems.length > 0 && (
+            <button
+              onClick={() => {
+                triggerHaptic('medium');
+                setIsDiceOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-gradient-to-r from-red-600/20 to-purple-600/20 hover:from-red-600/30 hover:to-purple-600/30 border border-red-500/30 text-white text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-sm"
+              title="Can't decide? Roll the WatchVault dice"
+            >
+              <Dices className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+              <span>Surprise Me</span>
+            </button>
+          )}
+
+          <Link
+            href="/settings"
+            className="text-slate-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+          >
+            <span>Preferences</span>
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+          </Link>
+        </div>
       </div>
 
       {/* SECTION 1: Continue Watching (Strictly Real Personal Data) */}
@@ -913,13 +940,36 @@ export default function HomePage() {
       )}
 
       {/* SECTION 5: Recommended / Taste Architecture Banner */}
-      <section className="p-8 rounded-3xl bg-gradient-to-r from-red-950/20 via-[#10121a] to-[#12141f] border border-white/5 text-center mt-12">
+      <section className="p-8 rounded-3xl bg-gradient-to-r from-red-950/20 via-[#10121a] to-[#12141f] border border-white/5 text-center mt-12 mb-8">
         <Sparkles className="w-8 h-8 text-red-500 mx-auto mb-3" />
         <h3 className="text-base font-bold text-white mb-1">Tailored Discovery Active</h3>
         <p className="text-xs text-slate-400 max-w-md mx-auto">
           WatchVault combines your personal watch tracking with your custom settings preferences to curate your home page.
         </p>
       </section>
+
+      {/* Floating Quick Surprise Me Button (Bottom right on mobile & desktop above nav) */}
+      {libraryItems.length > 0 && (
+        <button
+          onClick={() => {
+            triggerHaptic('medium');
+            setIsDiceOpen(true);
+          }}
+          className="fixed z-40 right-4 sm:right-6 bottom-[calc(4.8rem+env(safe-area-inset-bottom))] lg:bottom-6 p-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-xl shadow-red-950/60 border border-red-400/30 transition-all active:scale-95 hover:scale-105 cursor-pointer flex items-center gap-2 group"
+          title="Can't decide? Roll the WatchVault dice"
+        >
+          <Dices className="w-5 h-5 group-hover:rotate-45 transition-transform" />
+          <span className="hidden md:inline text-xs font-bold tracking-tight">Surprise Me</span>
+        </button>
+      )}
+
+      {/* Surprise Me / Dice Roll Randomizer Modal */}
+      <DiceRollModal
+        isOpen={isDiceOpen}
+        onClose={() => setIsDiceOpen(false)}
+        items={libraryItems}
+        availableGenres={availableGenres}
+      />
     </div>
   );
 }

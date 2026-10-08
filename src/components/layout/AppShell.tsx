@@ -7,6 +7,8 @@ import { MobileNav } from './MobileNav';
 import { HardwareBackButtonHandler } from './HardwareBackButtonHandler';
 import { syncEngine } from '@/lib/sync/syncEngine';
 
+import { ToastProvider } from '@/lib/toast/toastContext';
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Initial sync trigger on app load if online
@@ -23,23 +25,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col lg:flex-row antialiased">
-      {/* Android Hardware Back Button Interceptor */}
-      <HardwareBackButtonHandler />
+    <ToastProvider>
+      <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col lg:flex-row antialiased">
+        {/* Android Hardware Back Button Interceptor */}
+        <HardwareBackButtonHandler />
 
-      {/* Desktop Sidebar */}
-      <Sidebar />
+        {/* Desktop Sidebar */}
+        <Sidebar />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen pb-32 sm:pb-28 lg:pb-8">
-        <TopHeader />
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {children}
-        </main>
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-screen pb-32 sm:pb-28 lg:pb-8">
+          <TopHeader />
+          <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {children}
+          </main>
+        </div>
+
+        {/* Mobile Bottom Navigation */}
+        <MobileNav />
       </div>
-
-      {/* Mobile Bottom Navigation */}
-      <MobileNav />
-    </div>
+    </ToastProvider>
   );
 }

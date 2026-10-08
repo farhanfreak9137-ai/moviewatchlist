@@ -24,6 +24,8 @@ import {
   Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { useToast } from '@/lib/toast/toastContext';
+import { triggerHaptic } from '@/lib/utils/haptics';
 
 interface EpisodeTrackerProps {
   tvId: number;
@@ -139,6 +141,7 @@ export function EpisodeTracker({
   const [activeEpisode, setActiveEpisode] = useState<EpisodeInfo | null>(null);
   const [selectedSeasonForList, setSelectedSeasonForList] = useState<number>(currentSeason || 1);
   const [mounted, setMounted] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     setMounted(true);
@@ -214,6 +217,7 @@ export function EpisodeTracker({
     const key = `s${seasonNum}_e${episodeNum}`;
     const isCurrentlyWatched = watchedSet.has(key);
 
+    triggerHaptic(isCurrentlyWatched ? 'light' : 'success');
     const now = new Date().toISOString();
     await db.episode_progress.put({
       id,
@@ -229,6 +233,25 @@ export function EpisodeTracker({
     if (!isCurrentlyWatched && onProgressUpdate) {
       onProgressUpdate(seasonNum, episodeNum);
     }
+
+    showToast({
+      message: !isCurrentlyWatched
+        ? `Marked S${seasonNum}:E${episodeNum} watched`
+        : `Unmarked S${seasonNum}:E${episodeNum}`,
+      type: 'success',
+      undoAction: async () => {
+        await db.episode_progress.put({
+          id,
+          library_item_id: libraryItemId,
+          tmdb_id: tvId,
+          season_number: seasonNum,
+          episode_number: episodeNum,
+          is_watched: isCurrentlyWatched,
+          watched_at: isCurrentlyWatched ? now : undefined,
+          updated_at: now,
+        });
+      },
+    });
   };
 
   // Batch toggle an entire season's watched state
@@ -239,6 +262,7 @@ export function EpisodeTracker({
 
     const allWatched = episodes.every((ep) => watchedSet.has(`s${seasonNum}_e${ep.episode_number}`));
     const now = new Date().toISOString();
+    triggerHaptic(allWatched ? 'light' : 'success');
 
     await db.episode_progress.bulkPut(
       episodes.map((ep) => ({
@@ -257,6 +281,27 @@ export function EpisodeTracker({
       const lastEp = episodes[episodes.length - 1];
       onProgressUpdate(seasonNum, lastEp.episode_number);
     }
+
+    showToast({
+      message: !allWatched
+        ? `Marked all ${episodes.length} episodes of Season ${seasonNum} watched`
+        : `Unmarked Season ${seasonNum}`,
+      type: 'success',
+      undoAction: async () => {
+        await db.episode_progress.bulkPut(
+          episodes.map((ep) => ({
+            id: `${libraryItemId}_s${seasonNum}_e${ep.episode_number}`,
+            library_item_id: libraryItemId,
+            tmdb_id: tvId,
+            season_number: seasonNum,
+            episode_number: ep.episode_number,
+            is_watched: allWatched,
+            watched_at: allWatched ? now : undefined,
+            updated_at: now,
+          }))
+        );
+      },
+    });
   };
 
   // Find max episode count across all seasons to size the matrix columns
@@ -532,7 +577,7 @@ export function EpisodeTracker({
                           </div>
 
                           {/* Season Average Badge */}
-                          <div className="w-11 sm:w-16 shrink-0 flex justify-center">
+                          <div className="w-10 sm:w-14 shrink-0 flex justify-center">
                             {seasonAvg && avgColor ? (
                               <span
                                 className={cn(
@@ -548,6 +593,27 @@ export function EpisodeTracker({
                               <span className="text-[11px] font-mono text-slate-600">—</span>
                             )}
                           </div>
+
+                          {/* Quick Complete Season Button */}
+                          {libraryItemId && (
+                            <button
+                              type="button"
+                              onClick={() => toggleSeason(sNum)}
+                              className={cn(
+                                'w-5 h-5 rounded-md flex items-center justify-center transition-all cursor-pointer border shrink-0 ml-1 active:scale-90',
+                                episodes.length > 0 && episodes.every((ep) => watchedSet.has(`s${sNum}_e${ep.episode_number}`))
+                                  ? 'bg-emerald-500 border-emerald-400 text-white shadow-sm'
+                                  : 'bg-white/5 border-white/10 text-slate-500 hover:text-white hover:border-white/30'
+                              )}
+                              title={
+                                episodes.length > 0 && episodes.every((ep) => watchedSet.has(`s${sNum}_e${ep.episode_number}`))
+                                  ? `Season ${sNum} fully watched • Click to unmark`
+                                  : `Click to mark Season ${sNum} as completely watched`
+                              }
+                            >
+                              <Check className="w-3 h-3 stroke-[3]" />
+                            </button>
+                          )}
                         </div>
 
                         {/* Episode Cells */}

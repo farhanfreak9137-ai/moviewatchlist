@@ -17,9 +17,10 @@ interface MediaRowProps {
     voteAverage?: number;
   }>;
   emptyMessage?: string;
+  isLoading?: boolean;
 }
 
-export function MediaRow({ title, subtitle, action, items, emptyMessage }: MediaRowProps) {
+export function MediaRow({ title, subtitle, action, items, emptyMessage, isLoading }: MediaRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowStorageKey = `watchvault_row_scroll_${title.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
@@ -44,6 +45,29 @@ export function MediaRow({ title, subtitle, action, items, emptyMessage }: Media
       scrollRef.current.scrollBy({ left: offset, behavior: 'smooth' });
     }
   };
+
+  if (isLoading) {
+    return (
+      <section className="mb-10 relative group">
+        <div className="flex items-end justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">{title}</h2>
+            {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+          </div>
+          {action}
+        </div>
+        <div className="flex gap-4 overflow-hidden -mx-4 px-4 sm:mx-0 sm:px-0">
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <div key={n} className="w-[150px] sm:w-[180px] md:w-[200px] shrink-0">
+              <div className="aspect-[2/3] w-full rounded-xl bg-white/5 animate-pulse border border-white/5 mb-3" />
+              <div className="h-3.5 w-3/4 bg-white/10 rounded animate-pulse mb-1.5" />
+              <div className="h-3 w-1/2 bg-white/5 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   if (!items || items.length === 0) {
     if (!emptyMessage) return null;

@@ -13,17 +13,22 @@ import {
   Search,
   Filter,
   LayoutGrid,
+  Grid3X3,
   List,
   ArrowUpDown,
   X,
   Plus,
   Dices,
+  Star,
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
+import { getImageUrl } from '@/lib/metadata/tmdb';
+import { triggerHaptic } from '@/lib/utils/haptics';
 
 type LibraryTab = 'all' | 'movies' | 'tv' | 'watching' | 'completed' | 'planned' | 'dropped' | 'favorites';
 type SortOption = 'recently_added' | 'recently_updated' | 'title' | 'rating' | 'release_date';
+type ViewMode = 'grid' | 'wall' | 'list';
 
 function LibraryContent() {
   const searchParams = useSearchParams();
@@ -37,7 +42,7 @@ function LibraryContent() {
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedRating, setSelectedRating] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortOption>('recently_added');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [isDiceOpen, setIsDiceOpen] = useState(false);
 
   // Extract all unique genres from user's actual library items
@@ -282,25 +287,44 @@ function LibraryContent() {
             </select>
           </div>
 
-          {/* View Mode Toggle */}
+          {/* View Mode Toggle (Grid, Poster Wall, List) */}
           <div className="flex items-center bg-[#181a24] p-1 rounded-xl border border-white/10 shrink-0">
             <button
-              onClick={() => setViewMode('grid')}
+              onClick={() => {
+                triggerHaptic('selection');
+                setViewMode('grid');
+              }}
               className={cn(
                 'p-1.5 rounded-lg transition-colors cursor-pointer',
                 viewMode === 'grid' ? 'bg-white/15 text-white' : 'text-slate-400 hover:text-white'
               )}
-              title="Grid View"
+              title="Standard Grid View"
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setViewMode('list')}
+              onClick={() => {
+                triggerHaptic('selection');
+                setViewMode('wall');
+              }}
+              className={cn(
+                'p-1.5 rounded-lg transition-colors cursor-pointer',
+                viewMode === 'wall' ? 'bg-white/15 text-white' : 'text-slate-400 hover:text-white'
+              )}
+              title="Poster Wall (Letterboxd Style)"
+            >
+              <Grid3X3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                triggerHaptic('selection');
+                setViewMode('list');
+              }}
               className={cn(
                 'p-1.5 rounded-lg transition-colors cursor-pointer',
                 viewMode === 'list' ? 'bg-white/15 text-white' : 'text-slate-400 hover:text-white'
               )}
-              title="List View"
+              title="Compact List View"
             >
               <List className="w-4 h-4" />
             </button>
@@ -335,6 +359,74 @@ function LibraryContent() {
               releaseDate={item.release_date}
             />
           ))}
+        </div>
+      ) : viewMode === 'wall' ? (
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3">
+          {filteredItems.map((item) => {
+            const posterUrl = getImageUrl(item.poster_path, 'w342');
+            return (
+              <Link
+                key={item.id}
+                href={`/title?mediaType=${item.media_type}&id=${item.tmdb_id}`}
+                className="group relative aspect-[2/3] rounded-xl overflow-hidden bg-[#10121a] border border-white/5 hover:border-white/30 transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl hover:shadow-black/70 cursor-pointer block"
+                title={`${item.title} (${item.release_year || ''})`}
+              >
+                {posterUrl ? (
+                  <img
+                    src={posterUrl}
+                    alt={item.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-gradient-to-br from-[#121420] to-[#1c1f30] text-slate-500">
+                    <span className="text-[10px] font-semibold text-slate-300 line-clamp-3">
+                      {item.title}
+                    </span>
+                  </div>
+                )}
+
+                {/* Subtle top/bottom overlays */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/40 opacity-70 group-hover:opacity-90 transition-opacity" />
+
+                {/* Status dot badge top left */}
+                <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+                  <span
+                    className={cn(
+                      'w-2 h-2 rounded-full ring-2 ring-black/60 shadow-sm',
+                      item.status === 'completed'
+                        ? 'bg-emerald-400'
+                        : item.status === 'watching'
+                        ? 'bg-sky-400 animate-pulse'
+                        : item.status === 'dropped'
+                        ? 'bg-rose-400'
+                        : 'bg-amber-400'
+                    )}
+                  />
+                </div>
+
+                {/* Rating badge top right */}
+                {item.rating > 0 && (
+                  <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-amber-500/30 text-amber-300 font-mono font-bold text-[9px] shadow">
+                    <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
+                    <span>{item.rating}</span>
+                  </div>
+                )}
+
+                {/* Bottom title & progress snippet */}
+                <div className="absolute bottom-1.5 left-2 right-2 truncate">
+                  <span className="text-[10px] sm:text-xs font-bold text-white group-hover:text-red-400 transition-colors drop-shadow block truncate">
+                    {item.title}
+                  </span>
+                  {item.media_type === 'tv' && item.current_season && (
+                    <span className="text-[9px] font-mono text-sky-300 block">
+                      S{item.current_season}:E{item.current_episode || 0}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       ) : (
         <div className="space-y-2">

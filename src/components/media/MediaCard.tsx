@@ -6,6 +6,9 @@ import { useLibrary } from '@/hooks/useLibrary';
 import { MediaType, WatchStatus } from '@/lib/types';
 import { getImageUrl, tmdbService } from '@/lib/metadata/tmdb';
 import { useFinancials } from '@/lib/metadata/financials';
+import { useToast } from '@/lib/toast/toastContext';
+import { triggerHaptic } from '@/lib/utils/haptics';
+import { MobileStatusSheet } from './MobileStatusSheet';
 import { StatusBadge } from './StatusBadge';
 import {
   Plus,
@@ -44,13 +47,15 @@ export function MediaCard({
   voteAverage,
   className,
 }: MediaCardProps) {
-  const { getItemByTmdbId, addToLibrary, updateItem, removeItem, incrementEpisode } = useLibrary();
+  const { getItemByTmdbId, addToLibrary, updateItem, removeItem, incrementEpisode, toggleFavorite, setRating } = useLibrary();
+  const { showToast } = useToast();
   const libraryItem = getItemByTmdbId(id, mediaType);
   const isInLibrary = !!libraryItem;
 
   const { financial } = useFinancials(id, mediaType, voteAverage);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [addingStatus, setAddingStatus] = useState<WatchStatus | null>(null);
   const [isIncrementing, setIsIncrementing] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -58,13 +63,43 @@ export function MediaCard({
   const posterUrl = getImageUrl(posterPath, 'w500');
   const year = releaseDate ? releaseDate.substring(0, 4) : '';
 
+  const openStatusPicker = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsMobileSheetOpen(true);
+    } else {
+      setIsMenuOpen((prev) => !prev);
+    }
+  };
+
   const handleQuickIncrementEpisode = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!libraryItem || libraryItem.media_type !== 'tv') return;
     try {
       setIsIncrementing(true);
-      await incrementEpisode(libraryItem.id);
+      triggerHaptic('medium');
+      const prevSeason = libraryItem.current_season || 1;
+      const prevEpisode = libraryItem.current_episode || 0;
+      const prevStatus = libraryItem.status;
+      const result = await incrementEpisode(libraryItem.id);
+
+      showToast({
+        message: result.isCompleted
+          ? `Finished all episodes of "${title}"!`
+          : `Marked S${result.newSeason}:E${result.newEpisode} watched`,
+        type: 'success',
+        undoAction: async () => {
+          await updateItem(libraryItem.id, {
+            current_season: prevSeason,
+            current_episode: prevEpisode,
+            status: prevStatus,
+          });
+          triggerHaptic('light');
+        },
+        undoLabel: 'Undo',
+      });
     } catch (err) {
       console.error('Failed to increment episode:', err);
     } finally {
@@ -75,16 +110,33 @@ export function MediaCard({
   const handleSelectStatus = async (status: WatchStatus) => {
     try {
       setAddingStatus(status);
+      triggerHaptic('selection');
+      const prevStatus = libraryItem?.status;
       if (isInLibrary && libraryItem) {
         await updateItem(libraryItem.id, { status });
+        showToast({
+          message: `Moved "${title}" to ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+          type: 'success',
+          undoAction: prevStatus ? async () => {
+            await updateItem(libraryItem.id, { status: prevStatus });
+          } : undefined,
+        });
       } else {
         const details =
           mediaType === 'movie'
             ? await tmdbService.getMovieDetails(id)
             : await tmdbService.getSeriesDetails(id);
-        await addToLibrary(details, mediaType, status);
+        const added = await addToLibrary(details, mediaType, status);
+        showToast({
+          message: `Added to ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+          type: 'success',
+          undoAction: async () => {
+            await removeItem(added.id);
+          },
+        });
       }
       setIsMenuOpen(false);
+      setIsMobileSheetOpen(false);
     } catch (err) {
       console.error('Failed to set status:', err);
     } finally {
@@ -92,11 +144,45 @@ export function MediaCard({
     }
   };
 
+  const handleSetRating = async (rating: number) => {
+    if (!libraryItem) return;
+    await setRating(libraryItem.id, rating);
+    showToast({
+      message: rating > 0 ? `Rated ${rating}/10 ★` : 'Rating cleared',
+      type: 'info',
+    });
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!libraryItem) return;
+    await toggleFavorite(libraryItem.id);
+    showToast({
+      message: !libraryItem.is_favorite ? 'Added to favorites' : 'Removed from favorites',
+      type: 'info',
+    });
+  };
+
   const handleRemove = async () => {
     if (!libraryItem) return;
     try {
+      triggerHaptic('warning');
+      const savedSnapshot = { ...libraryItem };
       await removeItem(libraryItem.id);
+      showToast({
+        message: `Removed "${title}" from vault`,
+        undoAction: async () => {
+          await addToLibrary(
+            { id: savedSnapshot.tmdb_id, title: savedSnapshot.title } as any,
+            savedSnapshot.media_type,
+            savedSnapshot.status,
+            savedSnapshot.rating,
+            savedSnapshot.is_favorite
+          );
+        },
+        undoLabel: 'Restore',
+      });
       setIsMenuOpen(false);
+      setIsMobileSheetOpen(false);
     } catch (err) {
       console.error('Failed to remove from library:', err);
     }
@@ -251,11 +337,7 @@ export function MediaCard({
         {/* Action Button: Opens Status Picker Options (Planned / Watching / Completed) */}
         <button
           type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsMenuOpen((prev) => !prev);
-          }}
+          onClick={openStatusPicker}
           className={cn(
             'absolute top-2 right-2 p-1.5 rounded-full transition-all shadow-lg cursor-pointer z-10',
             isInLibrary
@@ -374,11 +456,7 @@ export function MediaCard({
               <div className="flex items-center justify-between w-full gap-1">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsMenuOpen((prev) => !prev);
-                  }}
+                  onClick={openStatusPicker}
                   className="flex items-center gap-1.5 cursor-pointer group/status hover:opacity-90 transition-opacity min-w-0"
                   title="Watching • Click to change status"
                 >
@@ -409,11 +487,7 @@ export function MediaCard({
               <>
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsMenuOpen((prev) => !prev);
-                  }}
+                  onClick={openStatusPicker}
                   className="flex items-center gap-1.5 cursor-pointer group/status shrink-0"
                   title="Click to change status"
                 >
@@ -432,11 +506,7 @@ export function MediaCard({
           <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between">
             <button
               type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsMenuOpen((prev) => !prev);
-              }}
+              onClick={openStatusPicker}
               className="w-full py-1 px-2 rounded-lg bg-white/5 hover:bg-red-600/90 text-slate-300 hover:text-white text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-3 h-3" />
@@ -445,6 +515,22 @@ export function MediaCard({
           </div>
         )}
       </div>
+
+      {/* Mobile-Friendly Slide-Up Bottom Sheet */}
+      <MobileStatusSheet
+        isOpen={isMobileSheetOpen}
+        onClose={() => setIsMobileSheetOpen(false)}
+        title={title}
+        mediaType={mediaType}
+        posterPath={posterPath}
+        releaseDate={releaseDate}
+        libraryItem={libraryItem}
+        isLoading={addingStatus !== null}
+        onSelectStatus={handleSelectStatus}
+        onSetRating={handleSetRating}
+        onToggleFavorite={handleToggleFavorite}
+        onRemove={handleRemove}
+      />
     </div>
   );
 }

@@ -6,6 +6,9 @@ import { syncEngine } from '@/lib/sync/syncEngine';
 import { LibraryItem, MediaType, WatchStatus } from '@/lib/types';
 import { TMDBDetailsResponse } from '@/lib/metadata/tmdb';
 
+// In-flight mutex to avoid duplicate additions from rapid concurrent clicks
+const inFlightAdds = new Map<string, Promise<LibraryItem>>();
+
 export function useLibrary() {
   const items = useLiveQuery(
     async () => {
@@ -13,7 +16,40 @@ export function useLibrary() {
       const list = await db.library_items
         .filter((item) => !item.is_deleted)
         .toArray();
-      return list.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      const sorted = list.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+      // Auto-heal & deduplicate by (media_type + tmdb_id)
+      const seen = new Set<string>();
+      const deduped: LibraryItem[] = [];
+      const duplicateIds: string[] = [];
+
+      for (const item of sorted) {
+        const key = `${item.media_type}_${item.tmdb_id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          deduped.push(item);
+        } else {
+          // Extra ghost record with identical TMDB ID and media type
+          duplicateIds.push(item.id);
+        }
+      }
+
+      // Automatically prune duplicate records in background
+      if (duplicateIds.length > 0) {
+        setTimeout(async () => {
+          try {
+            await db.transaction('rw', db.library_items, async () => {
+              for (const dupId of duplicateIds) {
+                await db.library_items.delete(dupId);
+              }
+            });
+          } catch (e) {
+            console.warn('Failed to prune duplicate library items:', e);
+          }
+        }, 0);
+      }
+
+      return deduped;
     },
     [],
     [] // Default initial empty array: STRICTLY NO MOCK DATA
@@ -43,7 +79,7 @@ export function useLibrary() {
 
   const getItemByTmdbId = (tmdbId: number, mediaType?: MediaType): LibraryItem | undefined => {
     return libraryItems.find(
-      (item) => item.tmdb_id === tmdbId && (!mediaType || item.media_type === mediaType)
+      (item) => Number(item.tmdb_id) === Number(tmdbId) && (!mediaType || item.media_type === mediaType)
     );
   };
 
@@ -63,11 +99,18 @@ export function useLibrary() {
     initialRating: number = 0,
     isFavorite: boolean = false
   ): Promise<LibraryItem> => {
-    // Check if item already exists
-    const existing = await db.library_items
-      .where('tmdb_id')
-      .equals(details.id)
-      .first();
+    const lockKey = `${mediaType}_${details.id}`;
+    if (inFlightAdds.has(lockKey)) {
+      return inFlightAdds.get(lockKey)!;
+    }
+
+    const addPromise = (async () => {
+      try {
+        // Check if item already exists (matching by tmdb_id & media_type)
+        const allMatching = await db.library_items
+          .filter((item) => !item.is_deleted && Number(item.tmdb_id) === Number(details.id) && item.media_type === mediaType)
+          .toArray();
+        const existing = allMatching[0];
 
     const deviceId = await getOrCreateDeviceId();
     const now = new Date().toISOString();
@@ -135,9 +178,16 @@ export function useLibrary() {
       device_id: deviceId,
     };
 
-    await saveLibraryItem(newItem);
-    syncEngine.scheduleSync();
-    return newItem;
+        await saveLibraryItem(newItem);
+        syncEngine.scheduleSync();
+        return newItem;
+      } finally {
+        inFlightAdds.delete(lockKey);
+      }
+    })();
+
+    inFlightAdds.set(lockKey, addPromise);
+    return addPromise;
   };
 
   const updateItem = async (id: string, updates: Partial<LibraryItem>): Promise<void> => {

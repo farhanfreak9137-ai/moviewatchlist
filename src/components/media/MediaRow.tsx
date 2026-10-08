@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 interface MediaRowProps {
   title: string;
   subtitle?: string;
+  action?: React.ReactNode;
   items: Array<{
     id: number;
     title: string;
@@ -18,7 +19,7 @@ interface MediaRowProps {
   emptyMessage?: string;
 }
 
-export function MediaRow({ title, subtitle, items, emptyMessage }: MediaRowProps) {
+export function MediaRow({ title, subtitle, action, items, emptyMessage }: MediaRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowStorageKey = `watchvault_row_scroll_${title.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
@@ -48,9 +49,12 @@ export function MediaRow({ title, subtitle, items, emptyMessage }: MediaRowProps
     if (!emptyMessage) return null;
     return (
       <section className="mb-10">
-        <div className="mb-3">
-          <h2 className="text-xl font-bold tracking-tight text-white">{title}</h2>
-          {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-white">{title}</h2>
+            {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+          </div>
+          {action}
         </div>
         <div className="p-8 rounded-2xl bg-[#10121a]/60 border border-white/5 text-center text-slate-400 text-sm">
           {emptyMessage}
@@ -67,22 +71,26 @@ export function MediaRow({ title, subtitle, items, emptyMessage }: MediaRowProps
           {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
         </div>
 
-        {/* Scroll Controls for Desktop */}
-        <div className="hidden sm:flex items-center gap-1.5">
-          <button
-            onClick={() => scroll('left')}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 hover:border-white/20 transition-colors cursor-pointer"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => scroll('right')}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 hover:border-white/20 transition-colors cursor-pointer"
-            aria-label="Scroll right"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-2">
+          {action}
+
+          {/* Scroll Controls for Desktop */}
+          <div className="hidden sm:flex items-center gap-1.5">
+            <button
+              onClick={() => scroll('left')}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 hover:border-white/20 transition-colors cursor-pointer"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => scroll('right')}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 hover:border-white/20 transition-colors cursor-pointer"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 

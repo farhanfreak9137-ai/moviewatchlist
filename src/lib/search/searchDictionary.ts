@@ -45,6 +45,22 @@ export const SEARCH_DICTIONARY: DictionaryEntry[] = [
   { text: 'Alien', category: 'franchise', subtitle: '20th Century Studios' },
   { text: 'Predator', category: 'franchise', subtitle: '20th Century Studios' },
   { text: 'Planet of the Apes', category: 'franchise', subtitle: '20th Century Studios' },
+  { text: 'Bollywood', category: 'franchise', subtitle: 'Bollywood & Hindi Cinema' },
+  { text: 'Hindi Cinema', category: 'franchise', subtitle: 'Indian & Hindi Blockbusters' },
+  { text: 'Tollywood', category: 'franchise', subtitle: 'Telugu Cinema' },
+  { text: 'Kollywood', category: 'franchise', subtitle: 'Tamil Cinema' },
+  { text: 'Korean Cinema', category: 'franchise', subtitle: 'Korean Movies & K-Dramas' },
+  { text: 'K-Drama', category: 'franchise', subtitle: 'Korean Television Drama' },
+  { text: 'KDrama', category: 'franchise', subtitle: 'Korean Television Drama' },
+  { text: 'HBO', category: 'franchise', subtitle: 'HBO & Max Originals' },
+  { text: 'HBO Max', category: 'franchise', subtitle: 'HBO & Max Originals' },
+  { text: 'Netflix', category: 'franchise', subtitle: 'Netflix Originals & Studios' },
+  { text: 'Paramount', category: 'franchise', subtitle: 'Paramount Pictures' },
+  { text: 'Universal', category: 'franchise', subtitle: 'Universal Pictures' },
+  { text: 'Sony Pictures', category: 'franchise', subtitle: 'Sony Pictures & Columbia' },
+  { text: 'Lionsgate', category: 'franchise', subtitle: 'Lionsgate Films' },
+  { text: 'Apple TV', category: 'franchise', subtitle: 'Apple Studios & Apple TV+' },
+
 
   // --- GENRES ---
   { text: 'Action', category: 'genre', subtitle: 'High-octane movies & series' },

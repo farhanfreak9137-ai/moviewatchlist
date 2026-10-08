@@ -662,5 +662,95 @@ export const tmdbService = {
       media_type: mediaType,
     }));
   },
+
+  // Discover by language (e.g. 'hi' for Hindi, 'ko' for Korean, 'te' for Telugu, 'fr' for French, 'ja' for Japanese)
+  async discoverByLanguage(language: string, mediaType: 'movie' | 'tv' = 'movie', page: number = 1): Promise<TMDBMediaItem[]> {
+    const key = `discover_lang_${language}_${mediaType}_p${page}`;
+    const endpoint = `discover/${mediaType}?with_original_language=${language}&sort_by=popularity.desc&page=${page}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[] }>(key, endpoint, 14400);
+    return (res.results || []).map((item) => ({
+      ...item,
+      media_type: mediaType,
+    }));
+  },
+
+  // Discover multiple pages of language/industry cinema
+  async discoverAllByLanguage(
+    language: string,
+    mediaType: 'movie' | 'tv' = 'movie',
+    maxPages: number = 5,
+    startPage: number = 1
+  ): Promise<TMDBMediaItem[]> {
+    const pagePromises = [];
+    const endPage = startPage + maxPages - 1;
+    for (let p = startPage; p <= endPage; p++) {
+      pagePromises.push(this.discoverByLanguage(language, mediaType, p).catch(() => []));
+    }
+    const pages = await Promise.all(pagePromises);
+    return pages.flat();
+  },
+
+  // Search TMDB production companies / studios dynamically
+  async searchCompanies(query: string, page: number = 1): Promise<Array<{ id: number; name: string; logo_path: string | null }>> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const key = `company_search_${encodeURIComponent(trimmed.toLowerCase())}_p${page}`;
+    const endpoint = `search/company?query=${encodeURIComponent(trimmed)}&page=${page}`;
+    const res = await fetchWithCache<{ results: Array<{ id: number; name: string; logo_path: string | null }> }>(key, endpoint, 86400);
+    return res.results || [];
+  },
+
+  // Search TMDB topic keywords dynamically
+  async searchKeywords(query: string, page: number = 1): Promise<Array<{ id: number; name: string }>> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const key = `keyword_search_${encodeURIComponent(trimmed.toLowerCase())}_p${page}`;
+    const endpoint = `search/keyword?query=${encodeURIComponent(trimmed)}&page=${page}`;
+    const res = await fetchWithCache<{ results: Array<{ id: number; name: string }> }>(key, endpoint, 86400);
+    return res.results || [];
+  },
+
+  // Discover by TMDB topic keywords
+  async discoverByKeywords(
+    keywordIds: number[],
+    mediaType: 'movie' | 'tv' = 'movie',
+    page: number = 1
+  ): Promise<TMDBMediaItem[]> {
+    if (!keywordIds || keywordIds.length === 0) return [];
+    const key = `discover_kw_${mediaType}_${keywordIds.join('_')}_p${page}`;
+    const endpoint = `discover/${mediaType}?with_keywords=${keywordIds.join('|')}&sort_by=popularity.desc&page=${page}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[] }>(key, endpoint, 14400);
+    return (res.results || []).map((item) => ({
+      ...item,
+      media_type: mediaType,
+    }));
+  },
+
+  // Multi-seed personalized recommendations
+  async getRecommendationsForSeeds(
+    seeds: Array<{ id: number; mediaType: MediaType }>,
+    limit: number = 20
+  ): Promise<TMDBMediaItem[]> {
+    if (!seeds || seeds.length === 0) return [];
+    const promises = seeds.slice(0, 4).map((seed) =>
+      this.getRecommendations(seed.id, seed.mediaType).catch(() => [])
+    );
+    const results = await Promise.all(promises);
+    const map = new Map<number, TMDBMediaItem>();
+    const seedIds = new Set(seeds.map((s) => s.id));
+
+    // Interleave results from each seed for variety
+    const maxLen = Math.max(...results.map((r) => r.length), 0);
+    for (let i = 0; i < maxLen; i++) {
+      for (const list of results) {
+        const item = list[i];
+        if (item && !seedIds.has(item.id) && !map.has(item.id) && item.poster_path) {
+          map.set(item.id, item);
+        }
+      }
+    }
+    return Array.from(map.values()).slice(0, limit);
+  },
 };
+
 

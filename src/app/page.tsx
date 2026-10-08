@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useLibrary } from '@/hooks/useLibrary';
 import { tmdbService, TMDBMediaItem } from '@/lib/metadata/tmdb';
 import { getContentPreferences, POPULAR_GENRES, DEFAULT_PREFERENCES } from '@/lib/preferences/contentPreferences';
-import { ContentPreferences, MediaType } from '@/lib/types';
+import { ContentPreferences, MediaType, LibraryItem } from '@/lib/types';
 import { HeroBanner } from '@/components/media/HeroBanner';
 import { MediaRow } from '@/components/media/MediaRow';
 import { MediaCard } from '@/components/media/MediaCard';
@@ -13,6 +13,7 @@ import {
   PlayCircle,
   History,
   Sparkles,
+  RefreshCw,
   AlertCircle,
   SlidersHorizontal,
   Film,
@@ -55,6 +56,63 @@ interface CachedDiscoveryData {
 
 let cachedDiscoveryFeeds: CachedDiscoveryData | null = null;
 
+async function generatePersonalizedRecommendations(
+  library: LibraryItem[],
+  prefs: ContentPreferences,
+  hub: DiscoverHub = 'all'
+): Promise<{ items: TMDBMediaItem[]; subtitle: string }> {
+  // 1. Identify high-interest seeds from personal vault
+  const highInterest = library.filter((i) => i.is_favorite || i.rating >= 7 || i.status === 'completed');
+  const inProgressOrPlanned = library.filter((i) => i.status === 'watching' || i.status === 'planned');
+  const candidates = highInterest.length > 0 ? highInterest : inProgressOrPlanned;
+
+  if (candidates.length > 0) {
+    const shuffledSeeds = [...candidates].sort(() => 0.5 - Math.random());
+    const seeds = shuffledSeeds.slice(0, 2);
+
+    try {
+      const recs = await tmdbService.getRecommendationsForSeeds(
+        seeds.map((s) => ({ id: s.tmdb_id, mediaType: s.media_type })),
+        20
+      );
+
+      if (recs && recs.length >= 4) {
+        const subtitle =
+          seeds.length === 1
+            ? `Because you watched "${seeds[0].title}"`
+            : `Inspired by "${seeds[0].title}" & "${seeds[1].title}"`;
+        return { items: recs, subtitle };
+      }
+    } catch (e) {
+      console.warn('Failed to fetch seed recommendations:', e);
+    }
+  }
+
+  // 2. Fallback: Rotating high-acclaim discovery across pages 1 to 4 so it changes every time
+  const randomPage = Math.floor(Math.random() * 4) + 1;
+  const targetMediaType: MediaType =
+    hub === 'tv' ? 'tv' : prefs.mediaFocus === 'tv' ? 'tv' : 'movie';
+
+  try {
+    const items = await tmdbService.discoverMedia(targetMediaType, {
+      minVoteAverage: 7.5,
+      minVoteCount: 100,
+      sortBy: 'popularity.desc',
+      page: randomPage,
+    });
+    const shuffled = [...items].sort(() => 0.5 - Math.random());
+    return {
+      items: shuffled,
+      subtitle: 'Fresh acclaimed picks for you • Refreshes on every visit',
+    };
+  } catch {
+    return {
+      items: [],
+      subtitle: 'Personalized recommendations',
+    };
+  }
+}
+
 export default function HomePage() {
   const { libraryItems, isLoading: isLibraryLoading } = useLibrary();
 
@@ -68,6 +126,13 @@ export default function HomePage() {
     }
     return cachedDiscoveryFeeds?.activeHub || 'all';
   });
+
+  // Dynamic recommendations state (refreshes and shuffles on every visit)
+  const [recommendedItems, setRecommendedItems] = useState<TMDBMediaItem[]>([]);
+  const [recommendationSubtitle, setRecommendationSubtitle] = useState<string>(
+    'Curated fresh picks for you • Refreshes on every visit'
+  );
+  const [isShufflingRecs, setIsShufflingRecs] = useState<boolean>(false);
 
   // Standard Feeds
   const [trendingMovies, setTrendingMovies] = useState<TMDBMediaItem[]>(
@@ -118,6 +183,20 @@ export default function HomePage() {
     () => !cachedDiscoveryFeeds || cachedDiscoveryFeeds.trendingMovies.length === 0
   );
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+
+  const handleShuffleRecommendations = useCallback(async () => {
+    if (isShufflingRecs) return;
+    setIsShufflingRecs(true);
+    try {
+      const res = await generatePersonalizedRecommendations(libraryItems, preferences, activeHub);
+      setRecommendedItems(res.items);
+      setRecommendationSubtitle(res.subtitle);
+    } catch (err) {
+      console.error('Failed to shuffle recommendations:', err);
+    } finally {
+      setIsShufflingRecs(false);
+    }
+  }, [isShufflingRecs, libraryItems, preferences, activeHub]);
 
   // 1. Personal Library: Strictly actual watching items
   const continueWatchingItems = libraryItems
@@ -267,6 +346,8 @@ export default function HomePage() {
           }
 
           try {
+            // Randomize page between 1 and 3 so tailored rows rotate fresh titles on refresh
+            const randomPage = Math.floor(Math.random() * 3) + 1;
             const items = await tmdbService.discoverMedia(rowMediaType, {
               withGenres: [withGenreId],
               minVoteAverage: minVoteAvg,
@@ -274,14 +355,16 @@ export default function HomePage() {
               yearGte,
               yearLte,
               sortBy: prefs.qualityFilter === 'high_acclaim' ? 'vote_average.desc' : 'popularity.desc',
+              page: randomPage,
             });
 
             if (items.length > 0) {
+              const shuffled = [...items].sort(() => 0.5 - Math.random());
               rows.push({
                 genreId: gId,
                 genreName: genreDef.name,
                 mediaType: rowMediaType,
-                items,
+                items: shuffled,
               });
             }
           } catch (e) {
@@ -289,8 +372,13 @@ export default function HomePage() {
           }
         }
 
+        // 4. Generate dynamic personalized recommendations (refreshes on every load)
+        const recsResult = await generatePersonalizedRecommendations(libraryItems, prefs, activeHub);
+
         if (isMounted) {
           setTailoredRows(rows);
+          setRecommendedItems(recsResult.items);
+          setRecommendationSubtitle(recsResult.subtitle);
 
           cachedDiscoveryFeeds = {
             preferences: prefs,
@@ -326,7 +414,19 @@ export default function HomePage() {
     };
   }, []);
 
-  // Smart Hero Items: dynamically adjusted based on activeHub and user preferences
+  // Update recommendations whenever library items become available
+  useEffect(() => {
+    if (!isLibraryLoading && libraryItems.length > 0) {
+      generatePersonalizedRecommendations(libraryItems, preferences, activeHub).then((res) => {
+        if (res.items.length > 0) {
+          setRecommendedItems(res.items);
+          setRecommendationSubtitle(res.subtitle);
+        }
+      });
+    }
+  }, [isLibraryLoading, libraryItems.length, activeHub]);
+
+  // Smart Hero Items: dynamically adjusted based on activeHub, recommendations, and fresh spotlight
   const heroItems = useMemo(() => {
     let pool: TMDBMediaItem[] = [];
 
@@ -337,9 +437,10 @@ export default function HomePage() {
     } else if (activeHub === 'tv') {
       pool = [...trendingTv, ...popularHindiTv, ...popularEnglishTv];
     } else {
-      // Balanced mix
-      const mixLen = Math.max(trendingMovies.length, trendingHindiMovies.length, trendingTv.length);
+      // Balanced mix including fresh recommendations
+      const mixLen = Math.max(trendingMovies.length, trendingHindiMovies.length, trendingTv.length, recommendedItems.length);
       for (let i = 0; i < mixLen; i++) {
+        if (recommendedItems[i]) pool.push(recommendedItems[i]);
         if (trendingMovies[i]) pool.push(trendingMovies[i]);
         if (trendingHindiMovies[i]) pool.push(trendingHindiMovies[i]);
         if (trendingTv[i]) pool.push(trendingTv[i]);
@@ -348,7 +449,10 @@ export default function HomePage() {
 
     const seen = new Set<number>();
     const unique: TMDBMediaItem[] = [];
-    for (const it of pool) {
+    const startOffset = pool.length > 0 ? Math.floor(Math.random() * Math.min(pool.length, 3)) : 0;
+    const reorderedPool = [...pool.slice(startOffset), ...pool.slice(0, startOffset)];
+
+    for (const it of reorderedPool) {
       if (it.backdrop_path && !seen.has(it.id)) {
         seen.add(it.id);
         unique.push(it);
@@ -359,6 +463,7 @@ export default function HomePage() {
     return unique.length > 0 ? unique : trendingMovies.slice(0, 5);
   }, [
     activeHub,
+    recommendedItems,
     trendingMovies,
     trendingHindiMovies,
     trendingTv,
@@ -515,6 +620,34 @@ export default function HomePage() {
             Discovery content is unavailable offline. Your personal library remains fully accessible.
           </span>
         </div>
+      )}
+
+      {/* SECTION 2: RECOMMENDED FOR YOU (Dynamically refreshes on every load/refresh) */}
+      {recommendedItems.length > 0 && (
+        <MediaRow
+          key="recommended-for-you"
+          title="Recommended For You"
+          subtitle={recommendationSubtitle}
+          action={
+            <button
+              onClick={handleShuffleRecommendations}
+              disabled={isShufflingRecs}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-semibold text-slate-300 hover:text-white border border-white/5 hover:border-white/20 transition-all cursor-pointer"
+              title="Shuffle for new recommendations"
+            >
+              <RefreshCw className={cn('w-3.5 h-3.5 text-red-500', isShufflingRecs && 'animate-spin')} />
+              <span className="hidden sm:inline">Shuffle Picks</span>
+            </button>
+          }
+          items={recommendedItems.map((m) => ({
+            id: m.id,
+            title: m.title || m.name || 'Untitled',
+            mediaType: (m.media_type || (m.name ? 'tv' : 'movie')) as MediaType,
+            posterPath: m.poster_path,
+            releaseDate: m.release_date || m.first_air_date,
+            voteAverage: m.vote_average,
+          }))}
+        />
       )}
 
       {/* SECTION 3: TAILORED GENRE ROWS */}

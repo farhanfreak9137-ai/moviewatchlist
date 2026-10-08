@@ -213,13 +213,17 @@ function renderHeroBrandLogo(iconType?: string, type?: string) {
 }
 
 const INSPIRATION_CHIPS = [
+  { label: 'Bollywood', logo: <span className="text-xs">🇮🇳</span>, query: 'Bollywood' },
   { label: 'Marvel', logo: <MarvelLogo size="sm" />, query: 'Marvel' },
   { label: 'DC Studios', logo: <DCLogo size="sm" />, query: 'DC' },
-  { label: 'DreamWorks', logo: <DreamWorksLogo size="sm" />, query: 'DreamWorks' },
+  { label: 'K-Drama', logo: <span className="text-xs">🇰🇷</span>, query: 'Korean' },
+  { label: 'HBO', logo: <span className="text-[11px] font-black text-purple-400">HBO</span>, query: 'HBO' },
   { label: 'Anime', logo: <AnimeLogo size="sm" />, query: 'Anime' },
+  { label: 'Paramount', logo: <span className="text-[11px] font-bold text-sky-400">PARA</span>, query: 'Paramount' },
   { label: 'Warner Bros', logo: <WarnerBrosLogo size="sm" />, query: 'Warner Bros' },
   { label: 'Pixar', logo: <PixarLogo size="sm" />, query: 'Pixar' },
   { label: 'Disney', logo: <DisneyLogo size="sm" />, query: 'Disney' },
+  { label: 'DreamWorks', logo: <DreamWorksLogo size="sm" />, query: 'DreamWorks' },
   { label: 'Studio Ghibli', logo: <StudioGhibliLogo size="sm" />, query: 'Studio Ghibli' },
   { label: 'X-Men', logo: <XMenLogo size="sm" />, query: 'X-Men' },
   { label: 'Star Wars', logo: <StarWarsLogo size="sm" />, query: 'Star Wars' },

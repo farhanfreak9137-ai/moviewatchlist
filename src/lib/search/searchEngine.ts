@@ -153,7 +153,96 @@ export async function executeSmartSearch(
     const bestCorrection = findBestCorrection(query, SEARCH_DICTIONARY);
 
     if (items.length === 0 && !forceOriginal) {
-      // Zero results: try searching with fuzzy corrected term if available
+      // 5a. Language demonym or regional industry match (e.g. "french", "spanish", "korean", "hindi", etc.)
+      const LANG_MAP: Record<string, string> = {
+        french: 'fr',
+        spanish: 'es',
+        german: 'de',
+        italian: 'it',
+        japanese: 'ja',
+        chinese: 'zh',
+        cantonese: 'zh',
+        korean: 'ko',
+        russian: 'ru',
+        turkish: 'tr',
+        danish: 'da',
+        swedish: 'sv',
+        portuguese: 'pt',
+        telugu: 'te',
+        tamil: 'ta',
+        malayalam: 'ml',
+        hindi: 'hi',
+        bengali: 'bn',
+      };
+      const matchedLang = LANG_MAP[norm];
+      if (matchedLang) {
+        const [langMovies, langTv] = await Promise.all([
+          tmdbService.discoverAllByLanguage(matchedLang, 'movie', 4).catch(() => []),
+          tmdbService.discoverAllByLanguage(matchedLang, 'tv', 3).catch(() => []),
+        ]);
+        const combined = [...langMovies, ...langTv];
+        if (combined.length > 0) {
+          return {
+            type: 'standard',
+            items: combined,
+            originalQuery: query,
+            executedQuery: query,
+          };
+        }
+      }
+
+      // 5b. Production company / studio lookup (dynamically discover ANY studio in world cinema)
+      try {
+        const companies = await tmdbService.searchCompanies(query, 1);
+        if (companies && companies.length > 0) {
+          const topCompany = companies[0];
+          const [compMovies, compTv] = await Promise.all([
+            tmdbService.discoverAllByCompanies([topCompany.id], 'movie', 4).catch(() => ({ results: [] })),
+            tmdbService.discoverAllByCompanies([topCompany.id], 'tv', 3).catch(() => ({ results: [] })),
+          ]);
+          const compAll = [...compMovies.results, ...compTv.results];
+          if (compAll.length > 0) {
+            return {
+              type: 'franchise',
+              items: compAll,
+              entityInfo: {
+                id: topCompany.id,
+                title: topCompany.name,
+                subtitle: 'Production Studio & Company',
+                imageUrl: topCompany.logo_path ? getImageUrl(topCompany.logo_path, 'w500') : null,
+                totalTitles: compAll.length,
+                hasMorePages: true,
+                lastFetchedPage: 4,
+              },
+              originalQuery: query,
+              executedQuery: topCompany.name,
+            };
+          }
+        }
+      } catch {}
+
+      // 5c. Topic keyword discovery (e.g. "zombie", "cyberpunk", "time travel", "vampire", "apocalypse")
+      try {
+        const keywords = await tmdbService.searchKeywords(query, 1);
+        if (keywords && keywords.length > 0) {
+          const topKw = keywords[0];
+          const [kwMovies, kwTv] = await Promise.all([
+            tmdbService.discoverByKeywords([topKw.id], 'movie', 1).catch(() => []),
+            tmdbService.discoverByKeywords([topKw.id], 'tv', 1).catch(() => []),
+          ]);
+          const kwAll = [...kwMovies, ...kwTv];
+          if (kwAll.length > 0) {
+            return {
+              type: 'standard',
+              items: kwAll,
+              originalQuery: query,
+              executedQuery: query,
+            };
+          }
+        }
+      } catch {}
+
+      // 5d. Zero results: try searching with fuzzy corrected term if available
       if (bestCorrection) {
         const correctedItems = await tmdbService.searchMultiPages(bestCorrection.corrected, 3);
         if (correctedItems.length > 0) {
@@ -210,36 +299,40 @@ export async function getSmartAutocomplete(
     genres: [],
   };
 
-  // 1. Franchise matches
+  // 1. Franchise & Studio matches
   for (const f of FRANCHISES) {
-    const isMatch = f.aliases.some((alias) => {
-      const normAlias = normalizeSearchString(alias);
-      return normAlias.startsWith(normQuery) || (normQuery.length >= 3 && normAlias.includes(normQuery));
-    });
+    const isMatch =
+      f.aliases.some((alias) => {
+        const normAlias = normalizeSearchString(alias);
+        return normAlias.startsWith(normQuery) || (normQuery.length >= 3 && normAlias.includes(normQuery));
+      }) || normalizeSearchString(f.name).includes(normQuery);
+
     if (isMatch) {
       results.franchises.push({
         id: f.id,
         title: f.name,
         subtitle: f.description,
         category: 'franchise',
-        queryToExecute: f.name,
+        queryToExecute: f.aliases[0] || f.name,
       });
     }
   }
 
   // 2. Genre matches
   for (const g of GENRE_MAP) {
-    const isMatch = g.aliases.some((alias) => {
-      const normAlias = normalizeSearchString(alias);
-      return normAlias.startsWith(normQuery) || (normQuery.length >= 3 && normAlias.includes(normQuery));
-    });
+    const isMatch =
+      g.aliases.some((alias) => {
+        const normAlias = normalizeSearchString(alias);
+        return normAlias.startsWith(normQuery) || (normQuery.length >= 3 && normAlias.includes(normQuery));
+      }) || normalizeSearchString(g.name).includes(normQuery);
+
     if (isMatch) {
       results.genres.push({
         id: g.id,
         title: g.name,
         subtitle: g.description,
         category: 'genre',
-        queryToExecute: g.name,
+        queryToExecute: g.aliases[0] || g.name,
       });
     }
   }
@@ -404,17 +497,34 @@ async function resolveFranchiseSearch(
     }
   }
 
-  // 3. Fetch language if available (e.g. Bollywood)
-  if (franchise.language) {
+  // 3. Fetch language / languages if available (e.g. Bollywood, South Indian, Korean)
+  if (franchise.languages && franchise.languages.length > 0) {
+    const moviePages = Math.min(franchise.maxMoviePages || 8, 4);
+    const tvPages = Math.min(franchise.maxTvPages || 6, 3);
+    for (const lang of franchise.languages) {
+      tasks.push(
+        tmdbService
+          .discoverAllByLanguage(lang, 'movie', moviePages)
+          .then((items) => items.forEach(addItem))
+          .catch(() => {})
+      );
+      tasks.push(
+        tmdbService
+          .discoverAllByLanguage(lang, 'tv', tvPages)
+          .then((items) => items.forEach(addItem))
+          .catch(() => {})
+      );
+    }
+  } else if (franchise.language) {
     tasks.push(
       tmdbService
-        .discoverAllHindi('movie', franchise.maxMoviePages || 8)
+        .discoverAllByLanguage(franchise.language, 'movie', franchise.maxMoviePages || 8)
         .then((items) => items.forEach(addItem))
         .catch(() => {})
     );
     tasks.push(
       tmdbService
-        .discoverAllHindi('tv', franchise.maxTvPages || 5)
+        .discoverAllByLanguage(franchise.language, 'tv', franchise.maxTvPages || 5)
         .then((items) => items.forEach(addItem))
         .catch(() => {})
     );
@@ -459,12 +569,6 @@ async function resolveFranchiseSearch(
     (a, b) => (b.popularity || 0) - (a.popularity || 0)
   );
 
-  const hasMore =
-    franchise.id === 'disney' ||
-    franchise.id === 'anime' ||
-    franchise.id === 'dreamworks' ||
-    franchise.id === 'warnerbros';
-
   return {
     type: 'franchise',
     items: merged,
@@ -478,8 +582,8 @@ async function resolveFranchiseSearch(
       badgeText: franchise.badgeText,
       iconType: franchise.iconType,
       totalTitles: merged.length,
-      hasMorePages: hasMore,
-      lastFetchedPage: hasMore ? (franchise.maxMoviePages || 15) : undefined,
+      hasMorePages: true,
+      lastFetchedPage: franchise.maxMoviePages || 8,
     },
     originalQuery,
     executedQuery: franchise.name,
@@ -499,6 +603,22 @@ export async function loadMoreStudioCatalog(
     const [movies, tvs] = await Promise.all([
       tmdbService.discoverAllAnime('movie', pageCount, startPage).catch(() => []),
       tmdbService.discoverAllAnime('tv', pageCount, startPage).catch(() => []),
+    ]);
+    return [...movies, ...tvs];
+  }
+  if (franchise.languages && franchise.languages.length > 0) {
+    const promises: Promise<TMDBMediaItem[]>[] = [];
+    for (const lang of franchise.languages) {
+      promises.push(tmdbService.discoverAllByLanguage(lang, 'movie', pageCount, startPage).catch(() => []));
+      promises.push(tmdbService.discoverAllByLanguage(lang, 'tv', Math.max(1, Math.floor(pageCount / 2)), startPage).catch(() => []));
+    }
+    const res = await Promise.all(promises);
+    return res.flat();
+  }
+  if (franchise.language) {
+    const [movies, tvs] = await Promise.all([
+      tmdbService.discoverAllByLanguage(franchise.language, 'movie', pageCount, startPage).catch(() => []),
+      tmdbService.discoverAllByLanguage(franchise.language, 'tv', pageCount, startPage).catch(() => []),
     ]);
     return [...movies, ...tvs];
   }

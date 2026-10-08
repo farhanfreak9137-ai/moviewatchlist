@@ -12,6 +12,7 @@ export interface FranchiseDefinition {
   maxMoviePages?: number;
   maxTvPages?: number;
   language?: string;
+  languages?: string[];
   isAnime?: boolean;
   filterItems?: (item: any) => boolean;
   bannerGradient: string;
@@ -100,17 +101,169 @@ export const FRANCHISES: FranchiseDefinition[] = [
   },
   {
     id: 'bollywood',
-    name: 'Bollywood & Hindi Cinema',
-    aliases: ['bollywood', 'hindi', 'hindi movies', 'hindi series', 'hindi shows', 'indian cinema', 'tollywood'],
-    description: 'The vibrant, emotional, and record-shattering world of Bollywood cinema and Indian streaming series.',
+    name: 'Bollywood & Indian Cinema',
+    aliases: [
+      'bollywood',
+      'bollywood movies',
+      'bollywood cinema',
+      'bollywood & hindi cinema',
+      'hindi',
+      'hindi movies',
+      'hindi cinema',
+      'hindi series',
+      'hindi shows',
+      'indian cinema',
+      'indian movies',
+      'indian series',
+      'indian shows',
+      'tollywood',
+      'telugu',
+      'telugu movies',
+      'telugu cinema',
+      'kollywood',
+      'tamil',
+      'tamil movies',
+      'tamil cinema',
+      'mollywood',
+      'malayalam',
+      'malayalam movies',
+    ],
+    description: 'The vibrant, emotional, and record-shattering world of Bollywood cinema, South Indian blockbusters, and acclaimed streaming series.',
     companyIds: [],
     language: 'hi',
-    queryKeywords: ['dangal', 'jawan', 'pathaan', '3 idiots', 'sholay', 'sacred games', 'mirzapur', 'stree 2'],
-    maxMoviePages: 8,
-    maxTvPages: 5,
+    languages: ['hi', 'te', 'ta', 'ml'],
+    queryKeywords: ['dangal', 'jawan', 'pathaan', '3 idiots', 'sholay', 'sacred games', 'mirzapur', 'stree 2', 'rrr', 'baahubali', 'kgf'],
+    maxMoviePages: 10,
+    maxTvPages: 6,
     bannerGradient: 'from-amber-950/80 via-orange-900/30 to-transparent',
     badgeBorder: 'border-orange-500/40',
     badgeText: 'text-orange-400',
+    iconType: 'generic',
+  },
+  {
+    id: 'korean',
+    name: 'Korean Cinema & K-Dramas',
+    aliases: [
+      'korean',
+      'korea',
+      'k-drama',
+      'kdrama',
+      'k-dramas',
+      'kdramas',
+      'korean movies',
+      'korean cinema',
+      'korean series',
+      'korean shows',
+      'k-movie',
+      'kmovie',
+    ],
+    description: 'Breathtaking cinema, acclaimed thrillers, and sensational global television phenomenons from South Korea.',
+    companyIds: [],
+    language: 'ko',
+    queryKeywords: ['parasite', 'squid game', 'crash landing on you', 'glory', 'all of us are dead', 'train to busan', 'vincenzo', 'queen of tears'],
+    maxMoviePages: 8,
+    maxTvPages: 6,
+    bannerGradient: 'from-indigo-950/80 via-purple-900/30 to-transparent',
+    badgeBorder: 'border-indigo-500/40',
+    badgeText: 'text-indigo-400',
+    iconType: 'generic',
+  },
+  {
+    id: 'hbo',
+    name: 'HBO & Max Originals',
+    aliases: ['hbo', 'hbo max', 'max', 'home box office', 'hbo original', 'hbo series', 'hbo shows', 'hbo originals'],
+    description: 'Prestige television, award-winning dramas, and culture-defining epic sagas from Home Box Office.',
+    companyIds: [3268],
+    queryKeywords: ['game of thrones', 'house of the dragon', 'succession', 'the last of us', 'the sopranos', 'the wire', 'chernobyl', 'true detective', 'white lotus', 'euphoria'],
+    maxMoviePages: 6,
+    maxTvPages: 10,
+    bannerGradient: 'from-purple-950/90 via-violet-950/40 to-transparent',
+    badgeBorder: 'border-purple-500/40',
+    badgeText: 'text-purple-300',
+    iconType: 'generic',
+  },
+  {
+    id: 'netflix',
+    name: 'Netflix Originals & Studios',
+    aliases: ['netflix', 'netflix originals', 'netflix movies', 'netflix series', 'netflix shows'],
+    description: 'Global streaming sensations, acclaimed original films, and binge-worthy pop-culture franchises.',
+    companyIds: [178464],
+    queryKeywords: ['stranger things', 'squid game', 'wednesday', 'the crown', 'black mirror', 'bridgerton', 'money heist', 'dark'],
+    maxMoviePages: 10,
+    maxTvPages: 10,
+    bannerGradient: 'from-red-950/90 via-black to-transparent',
+    badgeBorder: 'border-red-600/40',
+    badgeText: 'text-red-500',
+    iconType: 'generic',
+  },
+  {
+    id: 'paramount',
+    name: 'Paramount Pictures & Studios',
+    aliases: ['paramount', 'paramount pictures', 'paramount+', 'paramount plus', 'paramount studios'],
+    description: 'Century-spanning Hollywood legacy, adrenaline blockbusters, and iconic television epics.',
+    companyIds: [4, 838],
+    queryKeywords: ['mission: impossible', 'top gun', 'transformers', 'godfather', 'yellowstone', 'star trek', 'gladiator', 'interstellar'],
+    maxMoviePages: 10,
+    maxTvPages: 6,
+    bannerGradient: 'from-blue-950/90 via-sky-950/40 to-transparent',
+    badgeBorder: 'border-blue-500/40',
+    badgeText: 'text-blue-300',
+    iconType: 'generic',
+  },
+  {
+    id: 'universal',
+    name: 'Universal Pictures',
+    aliases: ['universal', 'universal pictures', 'universal studios'],
+    description: 'Pioneering theatrical blockbusters, Jurassic adventures, animated mega-hits, and legendary thrillers.',
+    companyIds: [33],
+    queryKeywords: ['oppenheimer', 'jurassic park', 'fast & furious', 'despicable me', 'back to the future', 'jaws', 'wicked'],
+    maxMoviePages: 10,
+    maxTvPages: 5,
+    bannerGradient: 'from-amber-950/90 via-stone-900/40 to-transparent',
+    badgeBorder: 'border-amber-500/40',
+    badgeText: 'text-amber-300',
+    iconType: 'generic',
+  },
+  {
+    id: 'sony',
+    name: 'Sony Pictures & Columbia Pictures',
+    aliases: ['sony', 'sony pictures', 'columbia pictures', 'tri-star'],
+    description: 'Iconic superhero sagas, world-renowned television classics, and timeless cinematic masterpieces.',
+    companyIds: [5, 34],
+    queryKeywords: ['spider-man', 'venom', 'breaking bad', 'better call saul', 'jumanji', 'ghostbusters', 'blade runner 2049'],
+    maxMoviePages: 10,
+    maxTvPages: 6,
+    bannerGradient: 'from-cyan-950/90 via-slate-900/40 to-transparent',
+    badgeBorder: 'border-cyan-500/40',
+    badgeText: 'text-cyan-300',
+    iconType: 'generic',
+  },
+  {
+    id: 'lionsgate',
+    name: 'Lionsgate Films',
+    aliases: ['lionsgate', 'lions gate', 'lionsgate films'],
+    description: 'Action-packed universes, dystopian blockbusters, horror legends, and acclaimed dramas.',
+    companyIds: [1632],
+    queryKeywords: ['john wick', 'the hunger games', 'twilight', 'saw', 'la la land', 'knives out'],
+    maxMoviePages: 10,
+    maxTvPages: 4,
+    bannerGradient: 'from-orange-950/90 via-neutral-900/40 to-transparent',
+    badgeBorder: 'border-orange-500/40',
+    badgeText: 'text-orange-300',
+    iconType: 'generic',
+  },
+  {
+    id: 'apple',
+    name: 'Apple Studios & Apple TV+',
+    aliases: ['apple', 'apple tv', 'apple tv+', 'apple studios'],
+    description: 'Critically celebrated, prestige television productions and award-winning visionary feature films.',
+    companyIds: [152865],
+    queryKeywords: ['ted lasso', 'severance', 'slow horses', 'the morning show', 'killers of the flower moon', 'for all mankind'],
+    maxMoviePages: 6,
+    maxTvPages: 8,
+    bannerGradient: 'from-slate-900 via-neutral-900 to-transparent',
+    badgeBorder: 'border-slate-400/40',
+    badgeText: 'text-slate-200',
     iconType: 'generic',
   },
   {
@@ -500,6 +653,11 @@ export function matchFranchise(rawQuery: string): FranchiseDefinition | null {
   if (!q) return null;
 
   for (const franchise of FRANCHISES) {
+    // 0. Direct match with ID or official name
+    if (q === franchise.id || q === normalizeSearchString(franchise.name)) {
+      return franchise;
+    }
+
     for (const alias of franchise.aliases) {
       const normAlias = normalizeSearchString(alias);
 
@@ -534,6 +692,11 @@ export function matchGenre(rawQuery: string): GenreDefinition | null {
   if (!q) return null;
 
   for (const genre of GENRE_MAP) {
+    // 0. Direct match with ID or official name
+    if (q === genre.id || q === normalizeSearchString(genre.name)) {
+      return genre;
+    }
+
     for (const alias of genre.aliases) {
       const normAlias = normalizeSearchString(alias);
       if (normAlias === q) return genre;
@@ -553,4 +716,5 @@ export function matchGenre(rawQuery: string): GenreDefinition | null {
   }
   return null;
 }
+
 

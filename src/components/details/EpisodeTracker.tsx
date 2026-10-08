@@ -48,70 +48,70 @@ export function getSeriesGraphColor(rating?: number | null): {
       label: 'Unrated',
     };
   }
-  // Absolute Cinema: >= 9.7 (SeriesGraph electric blue #1da1f2)
+  // Absolute Cinema: >= 9.7 (Electric Diamond Cyan #00e5ff / #1da1f2)
   if (rating >= 9.7) {
     return {
-      bg: 'bg-[#1da1f2]',
-      hoverBg: 'hover:bg-[#0c85d0]',
+      bg: 'bg-gradient-to-br from-[#00d2ff] to-[#1da1f2]',
+      hoverBg: 'hover:brightness-110',
       text: 'text-white font-black',
       hex: '#1da1f2',
       label: 'Absolute Cinema',
     };
   }
-  // Awesome: 9.0 - 9.6 (SeriesGraph deep dark forest green #186a3b - "dark green is really good")
+  // Awesome: 9.0 - 9.6 (Deep Emerald Jewel Green #186a3b)
   if (rating >= 9.0) {
     return {
-      bg: 'bg-[#186a3b]',
-      hoverBg: 'hover:bg-[#145a32]',
+      bg: 'bg-gradient-to-br from-[#1e8449] to-[#145a32]',
+      hoverBg: 'hover:brightness-110',
       text: 'text-white font-black',
       hex: '#186a3b',
       label: 'Awesome',
     };
   }
-  // Great: 8.0 - 8.9 (SeriesGraph light/medium emerald green #28b463 - "light green decend")
+  // Great: 8.0 - 8.9 (Jade Green #28b463)
   if (rating >= 8.0) {
     return {
-      bg: 'bg-[#28b463]',
-      hoverBg: 'hover:bg-[#239b56]',
+      bg: 'bg-gradient-to-br from-[#2ecc71] to-[#239b56]',
+      hoverBg: 'hover:brightness-110',
       text: 'text-white font-black',
       hex: '#28b463',
       label: 'Great',
     };
   }
-  // Good: 7.0 - 7.9 (SeriesGraph warm golden yellow #f4d03f with crisp black text for maximum contrast)
+  // Good: 7.0 - 7.9 (Golden Topaz #f4d03f with crisp black text)
   if (rating >= 7.0) {
     return {
-      bg: 'bg-[#f4d03f]',
-      hoverBg: 'hover:bg-[#d4ac0d]',
+      bg: 'bg-gradient-to-br from-[#f7dc6f] to-[#f1c40f]',
+      hoverBg: 'hover:brightness-110',
       text: 'text-[#111827] font-black',
       hex: '#f4d03f',
       label: 'Good',
     };
   }
-  // Average: 6.0 - 6.9 (SeriesGraph dark orange/amber #f39c12)
+  // Average: 6.0 - 6.9 (Tangerine Amber #f39c12 with crisp black text)
   if (rating >= 6.0) {
     return {
-      bg: 'bg-[#f39c12]',
-      hoverBg: 'hover:bg-[#d68910]',
+      bg: 'bg-gradient-to-br from-[#f39c12] to-[#d68910]',
+      hoverBg: 'hover:brightness-110',
       text: 'text-[#111827] font-black',
       hex: '#f39c12',
       label: 'Average',
     };
   }
-  // Bad: 5.0 - 5.9 (SeriesGraph crimson red #e74c3c)
+  // Bad: 5.0 - 5.9 (Crimson Ruby #e74c3c)
   if (rating >= 5.0) {
     return {
-      bg: 'bg-[#e74c3c]',
-      hoverBg: 'hover:bg-[#c0392b]',
+      bg: 'bg-gradient-to-br from-[#e74c3c] to-[#c0392b]',
+      hoverBg: 'hover:brightness-110',
       text: 'text-white font-black',
       hex: '#e74c3c',
       label: 'Bad',
     };
   }
-  // Garbage: < 5.0 (SeriesGraph deep plum purple #633974)
+  // Garbage: < 5.0 (Deep Plum Amethyst #633974)
   return {
-    bg: 'bg-[#633974]',
-    hoverBg: 'hover:bg-[#512e5f]',
+    bg: 'bg-gradient-to-br from-[#7d3c98] to-[#512e5f]',
+    hoverBg: 'hover:brightness-110',
     text: 'text-white font-black',
     hex: '#633974',
     label: 'Garbage',
@@ -135,6 +135,11 @@ export function EpisodeTracker({
   const [allSeasonEpisodes, setAllSeasonEpisodes] = useState<Record<number, EpisodeInfo[]>>({});
   const [loading, setLoading] = useState(true);
   const [activeEpisode, setActiveEpisode] = useState<EpisodeInfo | null>(null);
+  const [hoveredEp, setHoveredEp] = useState<{
+    episode: EpisodeInfo;
+    season: number;
+    rect: DOMRect;
+  } | null>(null);
   const [selectedSeasonForList, setSelectedSeasonForList] = useState<number>(currentSeason || 1);
   const [mounted, setMounted] = useState(false);
   const { showToast } = useToast();
@@ -634,12 +639,20 @@ export function EpisodeTracker({
                             return (
                               <button
                                 key={ep.id}
-                                onClick={() => setActiveEpisode(ep)}
+                                onClick={() => {
+                                  setHoveredEp(null);
+                                  setActiveEpisode(ep);
+                                }}
+                                onMouseEnter={(e) => {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setHoveredEp({ episode: ep, season: sNum, rect });
+                                }}
+                                onMouseLeave={() => setHoveredEp(null)}
                                 className={cn(
-                                  'relative w-10 sm:w-11 h-9 rounded-lg shrink-0 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shadow-sm group hover:scale-110 hover:z-20 border border-black/30',
+                                  'relative w-10 sm:w-11 h-9 rounded-lg shrink-0 flex flex-col items-center justify-center cursor-pointer gemstone-cell border border-black/40',
                                   color.bg,
                                   color.hoverBg,
-                                  isWatched && 'ring-2 ring-white/90 ring-offset-1 ring-offset-[#08090d]'
+                                  isWatched && 'ring-2 ring-white/95 ring-offset-1 ring-offset-[#08090d]'
                                 )}
                                 title={`S${sNum}E${epNum}: ${ep.name} (★ ${rating ? rating.toFixed(1) : 'Unrated'} — ${color.label})`}
                               >
@@ -1005,6 +1018,54 @@ export function EpisodeTracker({
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* EPISODE HOVER MICRO-PREVIEW TOOLTIP */}
+      {hoveredEp && !activeEpisode && mounted && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            left: `${Math.max(130, Math.min(window.innerWidth - 130, hoveredEp.rect.left + hoveredEp.rect.width / 2))}px`,
+            top: `${Math.max(80, hoveredEp.rect.top - 10)}px`,
+          }}
+          className="fixed z-50 transform -translate-x-1/2 -translate-y-full pointer-events-none animate-in fade-in zoom-in-95 duration-150"
+        >
+          <div className="p-3 rounded-2xl glass-island border border-white/15 shadow-2xl w-64 backdrop-blur-2xl space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-200 font-mono text-[10px] font-bold">
+                S{hoveredEp.season} E{hoveredEp.episode.episode_number}
+              </span>
+              {hoveredEp.episode.vote_average ? (
+                <span
+                  className={cn(
+                    'px-2 py-0.5 rounded-md font-mono text-[10px] font-black border border-black/30 shadow-sm',
+                    getSeriesGraphColor(hoveredEp.episode.vote_average).bg,
+                    getSeriesGraphColor(hoveredEp.episode.vote_average).text
+                  )}
+                >
+                  ★ {hoveredEp.episode.vote_average.toFixed(1)} {getSeriesGraphColor(hoveredEp.episode.vote_average).label}
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-500 font-mono">Unrated</span>
+              )}
+            </div>
+
+            <p className="text-xs font-bold text-white line-clamp-1 leading-snug">
+              {hoveredEp.episode.name}
+            </p>
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1.5 border-t border-white/10">
+              <span>{hoveredEp.episode.air_date || 'No air date'}</span>
+              {watchedSet.has(`s${hoveredEp.season}_e${hoveredEp.episode.episode_number}`) ? (
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <Check className="w-2.5 h-2.5 stroke-[4]" /> Watched
+                </span>
+              ) : (
+                <span className="text-slate-500">Click for details</span>
+              )}
             </div>
           </div>
         </div>,

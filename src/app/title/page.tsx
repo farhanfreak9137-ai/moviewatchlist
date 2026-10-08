@@ -167,11 +167,20 @@ function TitleDetailContent() {
       {/* Cinematic Backdrop Hero */}
       <div className="relative w-full h-[260px] sm:h-[400px] md:h-[520px] bg-[#0c0d14] overflow-hidden">
         {backdropUrl && (
-          <img
-            src={backdropUrl}
-            alt={title}
-            className="w-full h-full object-cover object-top opacity-35 sm:opacity-40"
-          />
+          <>
+            {/* Ambient diffused OLED light spill */}
+            <img
+              src={backdropUrl}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full object-cover object-top scale-110 blur-3xl opacity-50 select-none pointer-events-none"
+            />
+            <img
+              src={backdropUrl}
+              alt={title}
+              className="relative w-full h-full object-cover object-top opacity-40 sm:opacity-45"
+            />
+          </>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#08090d] via-[#08090d]/60 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#08090d] via-transparent to-[#08090d]/80" />

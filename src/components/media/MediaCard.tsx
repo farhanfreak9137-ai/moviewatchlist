@@ -397,7 +397,7 @@ export function MediaCard({
             </div>
           ) : isInLibrary && libraryItem.rating > 0 ? (
             <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold text-[11px] border border-amber-500/40 backdrop-blur-md shadow-sm">
-              <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+              <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0 golden-halo" />
               <span>{libraryItem.rating}/10</span>
             </div>
           ) : voteAverage ? (
@@ -411,7 +411,7 @@ export function MediaCard({
                   : 'bg-amber-500/15 border-amber-500/30 text-amber-300 shadow-[0_2px_8px_rgba(245,158,11,0.15)]'
               )}
             >
-              <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+              <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0 golden-halo" />
               <span className="font-bold">{voteAverage.toFixed(1)}</span>
               {financial?.verdict && financial.verdict !== 'unknown' && (
                 <>

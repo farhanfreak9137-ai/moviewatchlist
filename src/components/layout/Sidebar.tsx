@@ -63,6 +63,13 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => {
+                if (item.href === '/search' && typeof window !== 'undefined') {
+                  sessionStorage.removeItem('watchvault_saved_search_state');
+                  sessionStorage.removeItem('watchvault_returning_from_title');
+                  window.dispatchEvent(new CustomEvent('watchvault-clear-search'));
+                }
+              }}
               className={cn(
                 'flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group',
                 isActive

@@ -11,10 +11,16 @@ import {
   executeSmartSearch,
   getSmartAutocomplete,
   loadMoreStudioCatalog,
+  loadMoreGenreCatalog,
+  loadMoreFilteredCatalog,
+  SearchFilterState,
+  DEFAULT_SEARCH_FILTERS,
+  hasActiveSearchFilters,
   SmartSearchResult,
   AutocompleteResults,
   AutocompleteItem,
 } from '@/lib/search/searchEngine';
+import { SearchFilterDeck } from '@/components/search/SearchFilterDeck';
 import {
   getRecentSearches,
   addRecentSearch,
@@ -39,6 +45,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Zap,
+  Square,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import {
@@ -232,6 +240,145 @@ const INSPIRATION_CHIPS = [
   { label: 'Keanu Reeves', logo: <User className="w-3.5 h-3.5 text-blue-400" />, query: 'Keanu Reeves' },
 ];
 
+function getItemMediaType(item: TMDBMediaItem): 'movie' | 'tv' {
+  if (item.media_type === 'tv' || item.media_type === 'movie') return item.media_type;
+  if (item.first_air_date && !item.release_date) return 'tv';
+  if (item.release_date && !item.first_air_date) return 'movie';
+  if (item.name && !item.title) return 'tv';
+  if (item.title && !item.name) return 'movie';
+  return item.name ? 'tv' : 'movie';
+}
+
+function QuickExplorePills({
+  chips,
+  onSelectQuery,
+}: {
+  chips: typeof INSPIRATION_CHIPS;
+  onSelectQuery: (query: string) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  // Drag-to-scroll state
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startScrollLeftRef = useRef(0);
+  const hasDraggedRef = useRef(false);
+
+  const checkScroll = useCallback(() => {
+    if (!containerRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = containerRef.current;
+    setCanScrollLeft(scrollLeft > 10);
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll, { passive: true });
+    window.addEventListener('resize', checkScroll);
+    return () => {
+      el.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('resize', checkScroll);
+    };
+  }, [checkScroll]);
+
+  const handleScroll = (dir: 'left' | 'right') => {
+    if (!containerRef.current) return;
+    const amount = dir === 'left' ? -280 : 280;
+    containerRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY !== 0 && containerRef.current) {
+      containerRef.current.scrollLeft += e.deltaY;
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return;
+    isDraggingRef.current = true;
+    hasDraggedRef.current = false;
+    startXRef.current = e.pageX - containerRef.current.offsetLeft;
+    startScrollLeftRef.current = containerRef.current.scrollLeft;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current || !containerRef.current) return;
+    const x = e.pageX - containerRef.current.offsetLeft;
+    const walk = x - startXRef.current;
+    if (Math.abs(walk) > 5) {
+      hasDraggedRef.current = true;
+    }
+    containerRef.current.scrollLeft = startScrollLeftRef.current - walk;
+  };
+
+  const handleMouseUp = () => {
+    isDraggingRef.current = false;
+  };
+
+  return (
+    <div className="relative group/pills select-none py-1">
+      {/* Left Chevron Button */}
+      {canScrollLeft && (
+        <button
+          type="button"
+          onClick={() => handleScroll('left')}
+          className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#131625]/95 hover:bg-[#1a1e35] text-white border border-white/20 backdrop-blur-md shadow-2xl items-center justify-center cursor-pointer transition-all hover:scale-110"
+          title="Scroll left"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+      )}
+
+      {/* Right Chevron Button */}
+      {canScrollRight && (
+        <button
+          type="button"
+          onClick={() => handleScroll('right')}
+          className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#131625]/95 hover:bg-[#1a1e35] text-white border border-white/20 backdrop-blur-md shadow-2xl items-center justify-center cursor-pointer transition-all hover:scale-110"
+          title="Scroll right"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      )}
+
+      {/* Scrollable Track */}
+      <div
+        ref={containerRef}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs cursor-grab active:cursor-grabbing px-1"
+      >
+        <span className="text-slate-400 font-medium shrink-0 flex items-center gap-1 pl-1 pointer-events-none">
+          <Flame className="w-3.5 h-3.5 text-orange-400" />
+          Quick explore:
+        </span>
+        {chips.map((chip) => (
+          <button
+            key={chip.label}
+            type="button"
+            onClick={() => {
+              if (!hasDraggedRef.current) {
+                onSelectQuery(chip.query);
+              }
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 bg-[#121422] hover:bg-white/10 border border-white/5 hover:border-white/15 rounded-xl text-slate-300 hover:text-white transition-all shrink-0 cursor-pointer pointer-events-auto active:scale-95"
+          >
+            <span className="shrink-0 flex items-center">{chip.logo}</span>
+            <span className="font-medium">{chip.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -241,6 +388,7 @@ function SearchContent() {
 
   const { libraryItems } = useLibrary();
 
+  const [filters, setFilters] = useState<SearchFilterState>(DEFAULT_SEARCH_FILTERS);
   const [inputQuery, setInputQuery] = useState(queryFromUrl);
   const [executedQuery, setExecutedQuery] = useState(queryFromUrl);
   const [filterType, setFilterType] = useState<'all' | 'movie' | 'tv' | 'in_vault'>('all');
@@ -248,6 +396,8 @@ function SearchContent() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number | 'all'>(36);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isLoadingEverything, setIsLoadingEverything] = useState(false);
+  const stopLoadingEverythingRef = useRef(false);
   const resultsTopRef = useRef<HTMLDivElement>(null);
 
   const [searchResult, setSearchResult] = useState<SmartSearchResult>({
@@ -282,10 +432,14 @@ function SearchContent() {
       queryToRun: string,
       forceOriginal = false,
       explicitSearchType?: 'all' | 'person' | 'movie' | 'tv',
-      explicitPersonId?: number
+      explicitPersonId?: number,
+      overrideFilters?: SearchFilterState
     ) => {
+      const activeFilters = overrideFilters || filters;
       const trimmed = queryToRun.trim();
-      if (!trimmed) return;
+      const hasFilters = hasActiveSearchFilters(activeFilters);
+
+      if (!trimmed && !hasFilters) return;
 
       if (autocompleteTimeoutRef.current) {
         clearTimeout(autocompleteTimeoutRef.current);
@@ -295,7 +449,9 @@ function SearchContent() {
       inputRef.current?.blur();
 
       setInputQuery(trimmed);
-      setExecutedQuery(trimmed);
+      setExecutedQuery(trimmed || 'Custom Discovery');
+      setFilterType('all');
+      setSortBy('relevance');
       setCurrentPage(1);
       setIsLoading(true);
       setHasSearched(true);
@@ -306,13 +462,17 @@ function SearchContent() {
       if (typeof window !== 'undefined') {
         const url = activeType === 'person'
           ? `/search?q=${encodeURIComponent(trimmed)}&type=person${activePersonId ? `&personId=${activePersonId}` : ''}`
-          : `/search?q=${encodeURIComponent(trimmed)}`;
+          : trimmed
+          ? `/search?q=${encodeURIComponent(trimmed)}`
+          : `/search`;
         window.history.replaceState(null, '', url);
       }
 
       // Save to recents
-      const updatedRecents = addRecentSearch(trimmed);
-      setRecentSearches(updatedRecents);
+      if (trimmed) {
+        const updatedRecents = addRecentSearch(trimmed);
+        setRecentSearches(updatedRecents);
+      }
 
       try {
         const result = await executeSmartSearch(trimmed, {
@@ -320,6 +480,7 @@ function SearchContent() {
           forceOriginal,
           searchType: activeType,
           personId: activePersonId,
+          filters: activeFilters,
         });
         setSearchResult(result);
 
@@ -328,8 +489,8 @@ function SearchContent() {
             query: trimmed,
             inputQuery: trimmed,
             searchResult: result,
-            filterType,
-            sortBy,
+            filterType: 'all',
+            sortBy: 'relevance',
             scrollY: 0,
             currentPage: 1,
             pageSize,
@@ -342,7 +503,7 @@ function SearchContent() {
         setIsLoading(false);
       }
     },
-    [typeFromUrl, personIdFromUrl, libraryItems, filterType, sortBy, pageSize]
+    [typeFromUrl, personIdFromUrl, libraryItems, pageSize, filters]
   );
 
   const handleSelectItem = (item: AutocompleteItem) => {
@@ -368,20 +529,75 @@ function SearchContent() {
     }
   };
 
-  // Restore previous search state when navigating back from title details
+  const isRestoredRef = useRef(false);
+  const lastUrlQueryRef = useRef(queryFromUrl);
+
+  // Sync updated filter/sort/pagination preferences to sessionStorage without re-triggering search
   useEffect(() => {
-    let isMounted = true;
+    if (!hasSearched || !executedQuery) return;
     try {
-      const raw = typeof window !== 'undefined' ? sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY) : null;
+      const raw = sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY);
       if (raw) {
         const saved: SavedSearchState = JSON.parse(raw);
-        if (
-          saved &&
-          saved.searchResult?.items?.length > 0 &&
-          (!queryFromUrl || queryFromUrl.toLowerCase() === saved.query.toLowerCase())
-        ) {
-          const restoreTimer = setTimeout(() => {
-            if (!isMounted) return;
+        const updated: SavedSearchState = {
+          ...saved,
+          filterType,
+          sortBy,
+          currentPage,
+          pageSize,
+        };
+        sessionStorage.setItem(SEARCH_STATE_STORAGE_KEY, JSON.stringify(updated));
+      }
+    } catch (err) {
+      console.error('Failed to update search state in sessionStorage:', err);
+    }
+  }, [filterType, sortBy, currentPage, pageSize, hasSearched, executedQuery]);
+
+  const handleClearSearch = useCallback(() => {
+    setInputQuery('');
+    setExecutedQuery('');
+    setFilters(DEFAULT_SEARCH_FILTERS);
+    setSearchResult({
+      type: 'standard',
+      items: [],
+      originalQuery: '',
+      executedQuery: '',
+    });
+    setHasSearched(false);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(SEARCH_STATE_STORAGE_KEY);
+      sessionStorage.removeItem('watchvault_returning_from_title');
+      window.history.replaceState(null, '', '/search');
+    }
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('watchvault-clear-search', handleClearSearch);
+    return () => window.removeEventListener('watchvault-clear-search', handleClearSearch);
+  }, [handleClearSearch]);
+
+  // Restore previous search state ONLY when navigating back from title details
+  useEffect(() => {
+    if (isRestoredRef.current) return;
+    isRestoredRef.current = true;
+
+    try {
+      const isReturningFromTitle =
+        typeof window !== 'undefined'
+          ? sessionStorage.getItem('watchvault_returning_from_title') === 'true'
+          : false;
+
+      // Clean up the one-time return flag so subsequent reloads don't resurrect old state
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('watchvault_returning_from_title');
+      }
+
+      if (isReturningFromTitle) {
+        const raw = typeof window !== 'undefined' ? sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY) : null;
+        if (raw) {
+          const saved: SavedSearchState = JSON.parse(raw);
+          if (saved && saved.searchResult?.items?.length > 0) {
             setInputQuery(saved.inputQuery);
             setExecutedQuery(saved.query);
             setSearchResult(saved.searchResult);
@@ -391,20 +607,13 @@ function SearchContent() {
             if (saved.pageSize) setPageSize(saved.pageSize);
             setHasSearched(true);
 
-            if (!queryFromUrl && typeof window !== 'undefined') {
-              window.history.replaceState(null, '', `/search?q=${encodeURIComponent(saved.query)}`);
-            }
-
             if (saved.scrollY > 0) {
               setTimeout(() => {
                 window.scrollTo({ top: saved.scrollY, behavior: 'instant' });
               }, 60);
             }
-          }, 0);
-          return () => {
-            isMounted = false;
-            clearTimeout(restoreTimer);
-          };
+            return;
+          }
         }
       }
     } catch (err) {
@@ -412,24 +621,35 @@ function SearchContent() {
     }
 
     if (queryFromUrl) {
-      const runTimer = setTimeout(() => {
-        if (!isMounted) return;
-        setInputQuery(queryFromUrl);
-        handleExecuteSearch(
-          queryFromUrl,
-          false,
-          typeFromUrl === 'person' ? 'person' : undefined,
-          personIdFromUrl ? Number(personIdFromUrl) : undefined
-        );
-      }, 0);
-      return () => {
-        isMounted = false;
-        clearTimeout(runTimer);
-      };
+      setInputQuery(queryFromUrl);
+      handleExecuteSearch(
+        queryFromUrl,
+        false,
+        typeFromUrl === 'person' ? 'person' : undefined,
+        personIdFromUrl ? Number(personIdFromUrl) : undefined
+      );
+    } else {
+      // Direct visit or fresh reload of /search without ?q=: clean start!
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(SEARCH_STATE_STORAGE_KEY);
+      }
     }
-    return () => {
-      isMounted = false;
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handle URL query changes if navigated externally while already mounted
+  useEffect(() => {
+    if (!isRestoredRef.current) return;
+    if (queryFromUrl && queryFromUrl !== lastUrlQueryRef.current) {
+      lastUrlQueryRef.current = queryFromUrl;
+      setInputQuery(queryFromUrl);
+      handleExecuteSearch(
+        queryFromUrl,
+        false,
+        typeFromUrl === 'person' ? 'person' : undefined,
+        personIdFromUrl ? Number(personIdFromUrl) : undefined
+      );
+    }
   }, [queryFromUrl, typeFromUrl, personIdFromUrl, handleExecuteSearch]);
 
   // Live autocomplete triggered starting from 1st letter, but NOT if search just completed
@@ -532,9 +752,9 @@ function SearchContent() {
 
     // 1. Media Type Filter
     if (filterType === 'movie') {
-      list = list.filter((item) => (item.media_type || (item.title ? 'movie' : 'tv')) === 'movie');
+      list = list.filter((item) => getItemMediaType(item) === 'movie');
     } else if (filterType === 'tv') {
-      list = list.filter((item) => (item.media_type || (item.name ? 'tv' : 'movie')) === 'tv');
+      list = list.filter((item) => getItemMediaType(item) === 'tv');
     } else if (filterType === 'in_vault') {
       const vaultTmdbIds = new Set(libraryItems.map((li) => li.tmdb_id));
       list = list.filter((item) => vaultTmdbIds.has(item.id));
@@ -588,46 +808,230 @@ function SearchContent() {
   };
 
   const handleLoadMoreCatalog = async () => {
-    if (!searchResult.entityInfo?.id || isLoadingMore) return;
+    if (!searchResult.entityInfo?.id || isLoadingMore || isLoadingEverything) return;
     setIsLoadingMore(true);
     try {
-      const startPage = searchResult.entityInfo.lastFetchedPage || 15;
-      const additional = await loadMoreStudioCatalog(
-        String(searchResult.entityInfo.id),
-        startPage,
-        5
-      );
-      if (additional && additional.length > 0) {
-        setSearchResult((prev) => {
-          const map = new Map<string, TMDBMediaItem>();
-          prev.items.forEach((item) => {
-            map.set(`${item.media_type || (item.name ? 'tv' : 'movie')}_${item.id}`, item);
-          });
-          additional.forEach((item) => {
-            const key = `${item.media_type || (item.name ? 'tv' : 'movie')}_${item.id}`;
-            if (!map.has(key)) map.set(key, item);
-          });
-          const merged = Array.from(map.values()).sort(
-            (a, b) => (b.popularity || 0) - (a.popularity || 0)
+      if (searchResult.type === 'genre') {
+        const startMoviePage =
+          searchResult.entityInfo.lastFetchedMoviePage ||
+          searchResult.entityInfo.lastFetchedPage ||
+          15;
+        const startTvPage =
+          searchResult.entityInfo.lastFetchedTvPage ||
+          searchResult.entityInfo.lastFetchedPage ||
+          15;
+        const mediaFilter =
+          filterType === 'movie' ? 'movie' : filterType === 'tv' ? 'tv' : 'all';
+
+        let additional: TMDBMediaItem[] = [];
+        let nextMoviePage = startMoviePage;
+        let nextTvPage = startTvPage;
+        let hasMorePages = true;
+
+        if (searchResult.entityInfo.id === 'custom_filter' && hasActiveSearchFilters(filters)) {
+          const res = await loadMoreFilteredCatalog(
+            filters,
+            startMoviePage,
+            startTvPage,
+            10,
+            mediaFilter
           );
-          return {
+          additional = res.items;
+          nextMoviePage = res.lastFetchedMoviePage;
+          nextTvPage = res.lastFetchedTvPage;
+          hasMorePages = res.hasMorePages;
+        } else {
+          const res = await loadMoreGenreCatalog(
+            String(searchResult.entityInfo.id),
+            startMoviePage,
+            startTvPage,
+            10,
+            mediaFilter
+          );
+          additional = res.items;
+          nextMoviePage = res.lastFetchedMoviePage;
+          nextTvPage = res.lastFetchedTvPage;
+          hasMorePages = res.hasMorePages;
+        }
+
+        if (additional && additional.length > 0) {
+          setSearchResult((prev) => {
+            const map = new Map<string, TMDBMediaItem>();
+            prev.items.forEach((item) => {
+              const key = `${getItemMediaType(item)}_${item.id}`;
+              map.set(key, item);
+            });
+            additional.forEach((item) => {
+              const key = `${getItemMediaType(item)}_${item.id}`;
+              if (!map.has(key)) map.set(key, item);
+            });
+            const merged = Array.from(map.values()).sort(
+              (a, b) => (b.popularity || 0) - (a.popularity || 0)
+            );
+            return {
+              ...prev,
+              items: merged,
+              entityInfo: prev.entityInfo
+                ? {
+                    ...prev.entityInfo,
+                    totalTitles: merged.length,
+                    lastFetchedPage: Math.max(nextMoviePage, nextTvPage),
+                    lastFetchedMoviePage: nextMoviePage,
+                    lastFetchedTvPage: nextTvPage,
+                    hasMorePages,
+                  }
+                : undefined,
+            };
+          });
+        } else {
+          setSearchResult((prev) => ({
             ...prev,
-            items: merged,
-            entityInfo: prev.entityInfo
-              ? {
-                  ...prev.entityInfo,
-                  totalTitles: merged.length,
-                  lastFetchedPage: startPage + 5,
-                }
-              : undefined,
-          };
-        });
+            entityInfo: prev.entityInfo ? { ...prev.entityInfo, hasMorePages: false } : undefined,
+          }));
+        }
+      } else {
+        const startPage = searchResult.entityInfo.lastFetchedPage || 15;
+        const additional = await loadMoreStudioCatalog(
+          String(searchResult.entityInfo.id),
+          startPage,
+          5
+        );
+        if (additional && additional.length > 0) {
+          setSearchResult((prev) => {
+            const map = new Map<string, TMDBMediaItem>();
+            prev.items.forEach((item) => {
+              const key = `${getItemMediaType(item)}_${item.id}`;
+              map.set(key, item);
+            });
+            additional.forEach((item) => {
+              const key = `${getItemMediaType(item)}_${item.id}`;
+              if (!map.has(key)) map.set(key, item);
+            });
+            const merged = Array.from(map.values()).sort(
+              (a, b) => (b.popularity || 0) - (a.popularity || 0)
+            );
+            return {
+              ...prev,
+              items: merged,
+              entityInfo: prev.entityInfo
+                ? {
+                    ...prev.entityInfo,
+                    totalTitles: merged.length,
+                    lastFetchedPage: startPage + 5,
+                  }
+                : undefined,
+            };
+          });
+        }
       }
     } catch (err) {
-      console.error('Failed to load more studio catalog:', err);
+      console.error('Failed to load more catalog:', err);
     } finally {
       setIsLoadingMore(false);
     }
+  };
+
+  const handleLoadEverythingCatalog = async () => {
+    if (!searchResult.entityInfo?.id || isLoadingMore || isLoadingEverything) return;
+    setIsLoadingEverything(true);
+    stopLoadingEverythingRef.current = false;
+
+    try {
+      let currentMoviePage =
+        searchResult.entityInfo.lastFetchedMoviePage ||
+        searchResult.entityInfo.lastFetchedPage ||
+        15;
+      let currentTvPage =
+        searchResult.entityInfo.lastFetchedTvPage ||
+        searchResult.entityInfo.lastFetchedPage ||
+        15;
+      let hasMore = searchResult.entityInfo.hasMorePages ?? true;
+      const mediaFilter =
+        filterType === 'movie' ? 'movie' : filterType === 'tv' ? 'tv' : 'all';
+
+      // Iteratively load batches of 10 pages each (up to 15 batches = 150 pages = 3,000 titles)
+      for (let batch = 0; batch < 15 && hasMore && !stopLoadingEverythingRef.current; batch++) {
+        let additional: TMDBMediaItem[] = [];
+        let nextMoviePage = currentMoviePage;
+        let nextTvPage = currentTvPage;
+        let moreAvailable = false;
+
+        if (searchResult.entityInfo.id === 'custom_filter' && hasActiveSearchFilters(filters)) {
+          const res = await loadMoreFilteredCatalog(
+            filters,
+            currentMoviePage,
+            currentTvPage,
+            10,
+            mediaFilter
+          );
+          additional = res.items;
+          nextMoviePage = res.lastFetchedMoviePage;
+          nextTvPage = res.lastFetchedTvPage;
+          moreAvailable = res.hasMorePages;
+        } else {
+          const res = await loadMoreGenreCatalog(
+            String(searchResult.entityInfo.id),
+            currentMoviePage,
+            currentTvPage,
+            10,
+            mediaFilter
+          );
+          additional = res.items;
+          nextMoviePage = res.lastFetchedMoviePage;
+          nextTvPage = res.lastFetchedTvPage;
+          moreAvailable = res.hasMorePages;
+        }
+
+        currentMoviePage = nextMoviePage;
+        currentTvPage = nextTvPage;
+        hasMore = moreAvailable;
+
+        if (additional && additional.length > 0) {
+          setSearchResult((prev) => {
+            const map = new Map<string, TMDBMediaItem>();
+            prev.items.forEach((item) => {
+              const key = `${getItemMediaType(item)}_${item.id}`;
+              map.set(key, item);
+            });
+            additional.forEach((item) => {
+              const key = `${getItemMediaType(item)}_${item.id}`;
+              if (!map.has(key)) map.set(key, item);
+            });
+            const merged = Array.from(map.values()).sort(
+              (a, b) => (b.popularity || 0) - (a.popularity || 0)
+            );
+            return {
+              ...prev,
+              items: merged,
+              entityInfo: prev.entityInfo
+                ? {
+                    ...prev.entityInfo,
+                    totalTitles: merged.length,
+                    lastFetchedPage: Math.max(nextMoviePage, nextTvPage),
+                    lastFetchedMoviePage: nextMoviePage,
+                    lastFetchedTvPage: nextTvPage,
+                    hasMorePages: moreAvailable,
+                  }
+                : undefined,
+            };
+          });
+        } else {
+          break;
+        }
+
+        // Brief delay between batches to yield thread
+        await new Promise((r) => setTimeout(r, 120));
+      }
+    } catch (err) {
+      console.error('Failed to sync full catalog:', err);
+    } finally {
+      setIsLoadingEverything(false);
+    }
+  };
+
+  const handleStopLoadingEverything = () => {
+    stopLoadingEverythingRef.current = true;
+    setIsLoadingEverything(false);
   };
 
   return (
@@ -647,7 +1051,21 @@ function SearchContent() {
       <form onSubmit={handleFormSubmit} action="javascript:void(0);" className="relative animate-in fade-in slide-in-from-top-2 duration-300">
         <div className="relative flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            {/* Clickable Search Icon: Clears/Resets if active, or focuses input */}
+            <button
+              type="button"
+              onClick={() => {
+                if (inputQuery || hasSearched || hasActiveSearchFilters(filters)) {
+                  handleClearSearch();
+                } else {
+                  inputRef.current?.focus();
+                }
+              }}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white transition-colors cursor-pointer rounded-lg z-10"
+              title={inputQuery || hasSearched || hasActiveSearchFilters(filters) ? "Clear & reset search" : "Search"}
+            >
+              <Search className="w-5 h-5" />
+            </button>
             <input
               ref={inputRef}
               type="search"
@@ -669,16 +1087,12 @@ function SearchContent() {
             />
             {isLoading ? (
               <Loader2 className="w-5 h-5 absolute right-4 top-1/2 -translate-y-1/2 text-red-500 animate-spin" />
-            ) : inputQuery ? (
+            ) : inputQuery || hasSearched || hasActiveSearchFilters(filters) ? (
               <button
                 type="button"
-                onClick={() => {
-                  setInputQuery('');
-                  setAutocompleteResults({ titles: [], actors: [], franchises: [], genres: [] });
-                  inputRef.current?.focus();
-                }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-                title="Clear input"
+                onClick={handleClearSearch}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer z-10"
+                title="Clear & Reset"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -688,7 +1102,7 @@ function SearchContent() {
           {/* Explicit "OK / Search" Button */}
           <button
             type="submit"
-            disabled={!inputQuery.trim() || isLoading}
+            disabled={(!inputQuery.trim() && !hasActiveSearchFilters(filters)) || isLoading}
             className="flex items-center gap-2 px-5 py-3.5 bg-red-600 hover:bg-red-500 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none text-white font-semibold text-sm rounded-2xl shadow-lg shadow-red-600/30 transition-all cursor-pointer shrink-0"
           >
             <span>Search</span>
@@ -714,24 +1128,34 @@ function SearchContent() {
         />
       </form>
 
-      {/* Quick Inspiration & Trending Chips */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
-        <span className="text-slate-400 font-medium shrink-0 flex items-center gap-1 pl-1">
-          <Flame className="w-3.5 h-3.5 text-orange-400" />
-          Quick explore:
-        </span>
-        {INSPIRATION_CHIPS.map((chip) => (
-          <button
-            key={chip.label}
-            type="button"
-            onClick={() => handleExecuteSearch(chip.query)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[#121422] hover:bg-white/10 border border-white/5 hover:border-white/15 rounded-xl text-slate-300 hover:text-white transition-all shrink-0 cursor-pointer"
-          >
-            <span className="shrink-0 flex items-center">{chip.logo}</span>
-            <span className="font-medium">{chip.label}</span>
-          </button>
-        ))}
-      </div>
+      {/* Dedicated Filter Boxes (Genre, Rating, Language, Year, Sort) */}
+      <SearchFilterDeck
+        filters={filters}
+        onChange={(newFilters) => {
+          setFilters(newFilters);
+          handleExecuteSearch(inputQuery, false, undefined, undefined, newFilters);
+        }}
+        onReset={() => {
+          setFilters(DEFAULT_SEARCH_FILTERS);
+          if (inputQuery.trim()) {
+            handleExecuteSearch(inputQuery, false, undefined, undefined, DEFAULT_SEARCH_FILTERS);
+          } else {
+            setSearchResult({
+              type: 'standard',
+              items: [],
+              originalQuery: '',
+              executedQuery: '',
+            });
+            setHasSearched(false);
+          }
+        }}
+      />
+
+      {/* Quick Inspiration & Trending Chips with Desktop Mouse-Wheel & Drag Controls */}
+      <QuickExplorePills
+        chips={INSPIRATION_CHIPS}
+        onSelectQuery={(q) => handleExecuteSearch(q)}
+      />
 
       {/* Typo Correction / "Did You Mean" Banner */}
       {searchResult.correctedFrom && (
@@ -809,8 +1233,13 @@ function SearchContent() {
                     : 'Filmography & Actor'}
                 </span>
                 {searchResult.entityInfo.totalTitles ? (
-                  <span className="text-xs text-slate-300">
+                  <span className="text-xs text-slate-300 flex items-center gap-1.5">
                     • {searchResult.entityInfo.totalTitles} titles discovered
+                    {searchResult.entityInfo.hasMorePages && (
+                      <span className="text-[10px] text-amber-400 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                        Deep Catalog
+                      </span>
+                    )}
                   </span>
                 ) : null}
               </div>
@@ -871,7 +1300,7 @@ function SearchContent() {
                 Movies (
                 {
                   searchResult.items.filter(
-                    (i) => (i.media_type || (i.title ? 'movie' : 'tv')) === 'movie'
+                    (i) => getItemMediaType(i) === 'movie'
                   ).length
                 }
                 )
@@ -895,7 +1324,7 @@ function SearchContent() {
                 Series (
                 {
                   searchResult.items.filter(
-                    (i) => (i.media_type || (i.name ? 'tv' : 'movie')) === 'tv'
+                    (i) => getItemMediaType(i) === 'tv'
                   ).length
                 }
                 )
@@ -1036,10 +1465,10 @@ function SearchContent() {
           >
             {paginatedResults.map((item) => (
               <MediaCard
-                key={`${item.media_type}-${item.id}`}
+                key={`${getItemMediaType(item)}-${item.id}`}
                 id={item.id}
                 title={item.title || item.name || 'Untitled'}
-                mediaType={(item.media_type === 'tv' || item.name ? 'tv' : 'movie') as MediaType}
+                mediaType={getItemMediaType(item)}
                 posterPath={item.poster_path}
                 releaseDate={item.release_date || item.first_air_date}
                 voteAverage={item.vote_average}
@@ -1056,29 +1485,77 @@ function SearchContent() {
             />
           )}
 
-          {/* Load More Button for studios with huge catalogs like Disney */}
-          {searchResult.type === 'franchise' && searchResult.entityInfo?.hasMorePages && (
-            <div className="pt-4 pb-2 text-center">
-              <button
-                type="button"
-                disabled={isLoadingMore}
-                onClick={handleLoadMoreCatalog}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-blue-600/20 hover:from-red-600/35 hover:via-purple-600/35 hover:to-blue-600/35 border border-white/15 text-white font-semibold text-sm transition-all shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
-              >
-                {isLoadingMore ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-red-400" />
-                    <span>Loading more titles from catalog...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                    <span>Load 100 More Titles from Catalog</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+          {/* Load More & Deep Catalog Sync Controls for studios and genres with huge catalogs */}
+          {(searchResult.type === 'franchise' || searchResult.type === 'genre') &&
+            searchResult.entityInfo?.hasMorePages && (
+              <div className="pt-6 pb-2 flex flex-col items-center justify-center gap-3">
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    disabled={isLoadingMore || isLoadingEverything}
+                    onClick={handleLoadMoreCatalog}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-blue-600/20 hover:from-red-600/35 hover:via-purple-600/35 hover:to-blue-600/35 border border-white/15 text-white font-semibold text-sm transition-all shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-red-400" />
+                        <span>Loading more titles from catalog...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <span>
+                          {searchResult.type === 'genre'
+                            ? `Load 200+ More ${
+                                filterType === 'movie'
+                                  ? 'Movies'
+                                  : filterType === 'tv'
+                                  ? 'TV Series'
+                                  : 'Titles'
+                              }`
+                            : 'Load 100 More Titles from Catalog'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+
+                  {searchResult.type === 'genre' && (
+                    <>
+                      {isLoadingEverything ? (
+                        <button
+                          type="button"
+                          onClick={handleStopLoadingEverything}
+                          className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-red-600/30 hover:bg-red-600/45 border border-red-500/40 text-red-200 font-semibold text-sm transition-all shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                        >
+                          <Square className="w-4 h-4 fill-current text-red-400" />
+                          <span>Stop Syncing ({searchResult.items.length} titles loaded)</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isLoadingMore}
+                          onClick={handleLoadEverythingCatalog}
+                          className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-600/25 via-red-600/25 to-pink-600/25 hover:from-amber-600/40 hover:via-red-600/40 hover:to-pink-600/40 border border-amber-500/35 text-amber-200 font-semibold text-sm transition-all shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
+                        >
+                          <Zap className="w-4 h-4 text-amber-400" />
+                          <span>⚡ Load Everything (Deep Catalog Sync)</span>
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-400 text-center max-w-md">
+                  Showing <span className="text-white font-medium">{filteredAndSortedResults.length}</span> of{' '}
+                  <span className="text-white font-medium">{searchResult.items.length}</span> loaded titles
+                  {searchResult.entityInfo?.totalAvailableTitles ? (
+                    <span> • {searchResult.entityInfo.totalAvailableTitles.toLocaleString()} titles total in TMDB vault</span>
+                  ) : (
+                    <span> • Deep catalog discovery enabled</span>
+                  )}
+                </p>
+              </div>
+            )}
         </div>
       ) : !hasSearched ? (
         <div className="py-20 text-center max-w-md mx-auto text-slate-500 space-y-3">

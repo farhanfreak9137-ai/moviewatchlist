@@ -46,9 +46,16 @@ export function MobileStatusSheet({
   onToggleFavorite,
   onRemove,
 }: MobileStatusSheetProps) {
+  const resolvedPosterPath = posterPath || libraryItem?.poster_path;
+  const posterUrl = getImageUrl(resolvedPosterPath, 'w342');
+  const [imgError, setImgError] = React.useState(false);
+
+  React.useEffect(() => {
+    setImgError(false);
+  }, [resolvedPosterPath]);
+
   if (!isOpen) return null;
 
-  const posterUrl = getImageUrl(posterPath, 'w342');
   const year = releaseDate ? releaseDate.substring(0, 4) : '';
   const currentStatus = libraryItem?.status;
   const currentRating = libraryItem?.rating || 0;
@@ -128,24 +135,33 @@ export function MobileStatusSheet({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex flex-col justify-end bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[80] flex flex-col justify-end bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg mx-auto bg-[#0f111a] border-t border-white/15 rounded-t-3xl shadow-2xl p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom duration-250 max-h-[85vh] overflow-y-auto no-scrollbar"
+        className="w-full max-w-lg mx-auto bg-[#0f111a] border-t border-white/15 rounded-t-3xl shadow-2xl p-5 pb-[max(2.5rem,calc(env(safe-area-inset-bottom)+1.5rem))] animate-in slide-in-from-bottom duration-250 max-h-[85vh] overflow-y-auto no-scrollbar"
       >
         {/* Pull Handle */}
         <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-4" />
 
         {/* Header Preview */}
         <div className="flex items-center gap-3.5 pb-4 border-b border-white/10">
-          <div className="w-12 h-16 rounded-lg bg-white/5 overflow-hidden shrink-0 border border-white/10 relative">
-            {posterUrl ? (
-              <img src={posterUrl} alt={title} className="w-full h-full object-cover" />
+          <div className="w-12 sm:w-14 aspect-[2/3] rounded-xl bg-white/5 overflow-hidden shrink-0 border border-white/10 relative shadow-md">
+            {posterUrl && !imgError ? (
+              <img
+                src={posterUrl}
+                alt={title}
+                onError={() => setImgError(true)}
+                className="w-full h-full object-cover"
+              />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500">
-                {mediaType === 'movie' ? <Film className="w-5 h-5" /> : <Tv className="w-5 h-5" />}
+              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#151724] to-[#1c1e2d] text-slate-500">
+                {mediaType === 'movie' ? (
+                  <Film className="w-5 h-5 text-slate-400" />
+                ) : (
+                  <Tv className="w-5 h-5 text-slate-400" />
+                )}
               </div>
             )}
           </div>

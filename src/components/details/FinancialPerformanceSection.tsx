@@ -11,6 +11,7 @@ import {
   Tv,
   CheckCircle2,
   HelpCircle,
+  Clock,
 } from 'lucide-react';
 import {
   calculateMovieFinancials,
@@ -19,6 +20,7 @@ import {
   formatCurrencyFull,
 } from '@/lib/metadata/financials';
 import { MediaType } from '@/lib/types';
+import { getReleaseEraInfo } from '@/lib/utils/releaseEra';
 import { cn } from '@/lib/utils/cn';
 
 interface FinancialPerformanceSectionProps {
@@ -29,6 +31,7 @@ interface FinancialPerformanceSectionProps {
   voteAverage?: number;
   voteCount?: number;
   status?: string;
+  releaseDate?: string;
   numberOfSeasons?: number;
   numberOfEpisodes?: number;
   className?: string;
@@ -42,6 +45,7 @@ export function FinancialPerformanceSection({
   voteAverage = 0,
   voteCount = 0,
   status,
+  releaseDate,
   numberOfSeasons,
   numberOfEpisodes,
   className,
@@ -64,6 +68,9 @@ export function FinancialPerformanceSection({
     estimatedCrores,
   } = financials;
 
+  const releaseInfo = getReleaseEraInfo(releaseDate, status);
+  const isUpcoming = releaseInfo.isUpcoming;
+
   const isFlop = verdict === 'flop';
   const isBlockbuster = verdict === 'blockbuster';
   const isHit = verdict === 'hit';
@@ -72,7 +79,9 @@ export function FinancialPerformanceSection({
     <div
       className={cn(
         'p-5 sm:p-6 rounded-3xl border transition-all duration-300 mb-8',
-        isBlockbuster
+        isUpcoming
+          ? 'bg-gradient-to-br from-violet-950/30 via-[#10121a] to-[#0f111a] border-violet-500/30 shadow-lg shadow-violet-950/20'
+          : isBlockbuster
           ? 'bg-gradient-to-br from-amber-950/30 via-[#10121a] to-[#0f111a] border-amber-500/30 shadow-lg shadow-amber-950/20'
           : isHit
           ? 'bg-gradient-to-br from-emerald-950/30 via-[#10121a] to-[#0f111a] border-emerald-500/30 shadow-lg shadow-emerald-950/20'
@@ -88,7 +97,9 @@ export function FinancialPerformanceSection({
           <div
             className={cn(
               'p-2 rounded-xl border',
-              isBlockbuster
+              isUpcoming
+                ? 'bg-violet-500/10 border-violet-500/30 text-violet-400'
+                : isBlockbuster
                 ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
                 : isHit
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
@@ -97,14 +108,16 @@ export function FinancialPerformanceSection({
                 : 'bg-white/5 border-white/10 text-slate-300'
             )}
           >
-            {isMovie ? <DollarSign className="w-5 h-5" /> : <Tv className="w-5 h-5" />}
+            {isUpcoming ? <Clock className="w-5 h-5" /> : isMovie ? <DollarSign className="w-5 h-5" /> : <Tv className="w-5 h-5" />}
           </div>
           <div>
             <h3 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
               <span>{isMovie ? 'Box Office & Commercial Success' : 'Show Performance & Success'}</span>
             </h3>
             <p className="text-xs text-slate-400">
-              {isMovie
+              {isUpcoming
+                ? 'Target premiere date, production status & theatrical box office forecast'
+                : isMovie
                 ? 'Worldwide theatrical gross, production budget, net profit & box office verdict'
                 : 'Streaming engagement, audience acclaim & television success verdict'}
             </p>
@@ -115,7 +128,9 @@ export function FinancialPerformanceSection({
         <div
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold text-xs tracking-wider uppercase backdrop-blur-md shadow-md',
-            isBlockbuster
+            isUpcoming
+              ? 'bg-violet-500/20 border-violet-500/40 text-violet-300 shadow-violet-900/30'
+              : isBlockbuster
               ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 shadow-amber-900/30'
               : isHit
               ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 shadow-emerald-900/30'
@@ -124,7 +139,9 @@ export function FinancialPerformanceSection({
               : 'bg-slate-800/80 border-white/10 text-slate-300'
           )}
         >
-          {isBlockbuster ? (
+          {isUpcoming ? (
+            <Clock className="w-4 h-4 text-violet-400 animate-pulse" />
+          ) : isBlockbuster ? (
             <Sparkles className="w-4 h-4 text-amber-400" />
           ) : isHit ? (
             <TrendingUp className="w-4 h-4 text-emerald-400" />
@@ -133,7 +150,7 @@ export function FinancialPerformanceSection({
           ) : (
             <CheckCircle2 className="w-4 h-4 text-slate-400" />
           )}
-          <span>{verdictLabel}</span>
+          <span>{isUpcoming ? 'Upcoming Premiere' : verdictLabel}</span>
         </div>
       </div>
 
@@ -293,15 +310,27 @@ export function FinancialPerformanceSection({
           )}
         </>
       ) : (
-          <div className="p-4 rounded-2xl bg-black/30 border border-white/5 mb-5 flex items-center justify-between text-xs text-slate-400">
-            <div className="flex items-center gap-2">
-              <HelpCircle className="w-4 h-4 text-slate-400 shrink-0" />
+          <div className="p-4 rounded-2xl bg-black/30 border border-white/5 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
+            <div className="flex items-center gap-2.5">
+              {isUpcoming ? (
+                <Clock className="w-4 h-4 text-violet-400 shrink-0" />
+              ) : (
+                <HelpCircle className="w-4 h-4 text-slate-400 shrink-0" />
+              )}
               <span>
-                Exact theatrical receipts unrecorded by distributor. Rated <strong>{voteAverage.toFixed(1)}/10</strong> with {voteCount.toLocaleString()} verified audience votes.
+                {isUpcoming ? (
+                  <>
+                    Upcoming Theatrical Premiere — Target release date: <strong className="text-white">{releaseInfo.fullFormattedDate}</strong> {releaseInfo.relativeLabel ? `(${releaseInfo.relativeLabel})` : ''}. Box office gross and theatrical financials will be tracked following worldwide distribution.
+                  </>
+                ) : (
+                  <>
+                    Exact theatrical receipts unrecorded by distributor. Rated <strong>{voteAverage.toFixed(1)}/10</strong> with {voteCount.toLocaleString()} verified audience votes.
+                  </>
+                )}
               </span>
             </div>
-            <span className="font-mono text-white px-2.5 py-1 rounded-md bg-white/5">
-              {verdictLabel}
+            <span className="font-mono text-white px-2.5 py-1 rounded-md bg-white/5 shrink-0 self-start sm:self-auto">
+              {isUpcoming ? 'Pending Premiere' : verdictLabel}
             </span>
           </div>
         )
@@ -371,14 +400,18 @@ export function FinancialPerformanceSection({
             : 'bg-black/30 border-white/5 text-slate-300'
         )}
       >
-        {isFlop ? (
+        {isUpcoming ? (
+          <Clock className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+        ) : isFlop ? (
           <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
         ) : (
           <Award className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         )}
         <div>
           <span className="font-bold text-white block mb-0.5">
-            {isMovie
+            {isUpcoming
+              ? `Upcoming Theatrical Premiere: ${releaseInfo.fullFormattedDate}`
+              : isMovie
               ? isBlockbuster
                 ? `Historic Box Office Triumph: ${formattedRevenue}`
                 : isHit
@@ -389,7 +422,9 @@ export function FinancialPerformanceSection({
               : `${title}: ${verdictLabel}`}
           </span>
           <span>
-            {isMovie ? (
+            {isUpcoming ? (
+              `Targeted worldwide release ${releaseInfo.relativeLabel ? `(${releaseInfo.relativeLabel})` : ''}. Theatrical box office receipts, net profits, and commercial multiplier will be computed upon global premiere.`
+            ) : isMovie ? (
               budget > 0 ? (
                 isBlockbuster ? (
                   `Sensational theatrical run! Grossed ${formattedRevenue} against a ${formattedBudget} budget (${formattedMultiplier} return), delivering over ${formattedProfit} in surplus.`

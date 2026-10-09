@@ -523,25 +523,36 @@ export function EpisodeTracker({
             </div>
           )}
 
-          <div className="p-3 sm:p-6 rounded-2xl bg-[#0e1017] border border-white/10 overflow-x-auto shadow-2xl">
+          <div
+            onScroll={() => {
+              if (hoveredEp) setHoveredEp(null);
+            }}
+            onTouchStart={() => {
+              if (hoveredEp) setHoveredEp(null);
+            }}
+            className="py-3 px-0 sm:py-5 sm:px-0 rounded-2xl bg-[#0e1017] border border-white/10 overflow-x-auto shadow-2xl relative"
+          >
             {loading ? (
               <div className="py-20 text-center text-slate-400 text-xs">
                 Generating SeriesGraph rating matrix...
               </div>
             ) : (
-              <div className="min-w-[620px]">
+              <div className="w-max min-w-full">
                 {/* Column Headers (Episode Numbers E1, E2, E3...) */}
-                <div className="flex items-center gap-1.5 sm:gap-2 mb-2 pb-2 border-b border-white/5 text-[11px] font-mono text-slate-400">
-                  {/* Sticky Header Columns */}
-                  <div className="sticky left-0 bg-[#0e1017] z-20 flex items-center pr-2 border-r border-white/10 shadow-lg">
-                    <div className="w-12 sm:w-20 shrink-0 font-bold text-slate-300">
-                      <span className="sm:hidden font-mono">S</span>
+                <div className="flex items-center gap-0 mb-2 pb-2 border-b border-white/5 text-[11px] font-mono text-slate-400">
+                  {/* Sticky Header Columns with Frosted Glassmorphism */}
+                  <div className="sticky left-0 bg-gradient-to-r from-[#0c0e18]/95 via-[#0c0e18]/90 to-[#0c0e18]/80 backdrop-blur-xl sm:backdrop-blur-2xl z-20 flex items-center pl-3 sm:pl-6 pr-2.5 border-r border-white/15 shadow-[6px_0_20px_-2px_rgba(0,0,0,0.65),inset_-1px_0_0_0_rgba(255,255,255,0.06)] w-[124px] sm:w-[175px] shrink-0 self-stretch min-h-[32px]">
+                    <div className="flex-1 min-w-0 font-bold text-slate-300">
+                      <span className="sm:hidden font-mono text-xs">Season</span>
                       <span className="hidden sm:inline">Season</span>
                     </div>
-                    <div className="w-11 sm:w-16 shrink-0 text-center font-bold text-slate-300">Avg</div>
+                    <div className="w-10 sm:w-14 shrink-0 text-center font-bold text-slate-300 text-xs">Avg</div>
+                    <div className="w-6 shrink-0 text-center text-slate-500 font-bold text-[10px]">
+                      {libraryItemId ? '✓' : ''}
+                    </div>
                   </div>
 
-                  <div className="flex-1 flex gap-1.5 pl-1">
+                  <div className="flex-1 flex gap-1.5 pl-2 pr-3 sm:pr-6">
                     {Array.from({ length: maxEpisodes }, (_, i) => i + 1).map((epNum) => (
                       <div
                         key={epNum}
@@ -554,7 +565,7 @@ export function EpisodeTracker({
                 </div>
 
                 {/* Season Rows */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {targetSeasons.map((season) => {
                     const sNum = season.season_number;
                     const episodes = allSeasonEpisodes[sNum] || [];
@@ -569,14 +580,18 @@ export function EpisodeTracker({
                     return (
                       <div
                         key={season.id}
-                        className="flex items-center gap-1.5 sm:gap-2 py-1 hover:bg-white/[0.02] rounded-xl transition-colors"
+                        className="flex items-stretch gap-0 py-0.5 hover:bg-white/[0.02] rounded-xl transition-colors min-h-[44px]"
                       >
-                        {/* Sticky Season & Avg Columns */}
-                        <div className="sticky left-0 bg-[#0e1017] z-10 flex items-center pr-2 border-r border-white/10 shadow-lg">
-                          {/* Season Name */}
-                          <div className="w-12 sm:w-20 shrink-0 font-bold text-xs text-slate-200">
-                            <span className="sm:hidden font-mono">S{sNum}</span>
-                            <span className="hidden sm:inline">{season.name || `Season ${sNum}`}</span>
+                        {/* Sticky Season & Avg Columns with Frosted Glassmorphism */}
+                        <div className="sticky left-0 bg-gradient-to-r from-[#0c0e18]/92 via-[#0c0e18]/85 to-[#0c0e18]/75 backdrop-blur-xl sm:backdrop-blur-2xl z-10 flex items-center pl-3 sm:pl-6 pr-2.5 border-r border-white/15 shadow-[6px_0_20px_-2px_rgba(0,0,0,0.65),inset_-1px_0_0_0_rgba(255,255,255,0.06)] w-[124px] sm:w-[175px] shrink-0 self-stretch min-h-[44px]">
+                          {/* Season Name with Sleek Glass Pill */}
+                          <div className="flex-1 min-w-0 font-bold text-xs text-slate-200 truncate pr-1">
+                            <span className="sm:hidden font-mono px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-[11px] font-bold text-slate-100 shadow-sm">
+                              S{sNum}
+                            </span>
+                            <span className="hidden sm:inline truncate font-semibold text-slate-200">
+                              {season.name || `Season ${sNum}`}
+                            </span>
                           </div>
 
                           {/* Season Average Badge */}
@@ -584,7 +599,7 @@ export function EpisodeTracker({
                             {seasonAvg && avgColor ? (
                               <span
                                 className={cn(
-                                  'px-1.5 sm:px-2 py-0.5 rounded-md font-mono text-[10px] sm:text-[11px] text-center font-black shadow-sm border border-black/30',
+                                  'px-1.5 sm:px-2 py-0.5 rounded-md font-mono text-[10px] sm:text-[11px] text-center font-black shadow-md border border-white/20 backdrop-blur-sm',
                                   avgColor.bg,
                                   avgColor.text
                                 )}
@@ -598,29 +613,31 @@ export function EpisodeTracker({
                           </div>
 
                           {/* Quick Complete Season Button */}
-                          {libraryItemId && (
-                            <button
-                              type="button"
-                              onClick={() => toggleSeason(sNum)}
-                              className={cn(
-                                'w-5 h-5 rounded-md flex items-center justify-center transition-all cursor-pointer border shrink-0 ml-1 active:scale-90',
-                                episodes.length > 0 && episodes.every((ep) => watchedSet.has(`s${sNum}_e${ep.episode_number}`))
-                                  ? 'bg-emerald-500 border-emerald-400 text-white shadow-sm'
-                                  : 'bg-white/5 border-white/10 text-slate-500 hover:text-white hover:border-white/30'
-                              )}
-                              title={
-                                episodes.length > 0 && episodes.every((ep) => watchedSet.has(`s${sNum}_e${ep.episode_number}`))
-                                  ? `Season ${sNum} fully watched • Click to unmark`
-                                  : `Click to mark Season ${sNum} as completely watched`
-                              }
-                            >
-                              <Check className="w-3 h-3 stroke-[3]" />
-                            </button>
-                          )}
+                          <div className="w-6 shrink-0 flex justify-center">
+                            {libraryItemId && (
+                              <button
+                                type="button"
+                                onClick={() => toggleSeason(sNum)}
+                                className={cn(
+                                  'w-5 h-5 rounded-md flex items-center justify-center transition-all cursor-pointer border shrink-0 active:scale-90',
+                                  episodes.length > 0 && episodes.every((ep) => watchedSet.has(`s${sNum}_e${ep.episode_number}`))
+                                    ? 'bg-emerald-500 border-emerald-400 text-white shadow-sm'
+                                    : 'bg-white/5 border-white/10 text-slate-500 hover:text-white hover:border-white/30'
+                                )}
+                                title={
+                                  episodes.length > 0 && episodes.every((ep) => watchedSet.has(`s${sNum}_e${ep.episode_number}`))
+                                    ? `Season ${sNum} fully watched • Click to unmark`
+                                    : `Click to mark Season ${sNum} as completely watched`
+                                }
+                              >
+                                <Check className="w-3 h-3 stroke-[3]" />
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {/* Episode Cells */}
-                        <div className="flex-1 flex gap-1.5 pl-1">
+                        <div className="flex-1 flex items-center gap-1.5 pl-2 pr-3 sm:pr-6">
                           {Array.from({ length: maxEpisodes }, (_, i) => i + 1).map((epNum) => {
                             const ep = episodes.find((e) => e.episode_number === epNum);
                             if (!ep) {
@@ -644,9 +661,13 @@ export function EpisodeTracker({
                                   setActiveEpisode(ep);
                                 }}
                                 onMouseEnter={(e) => {
+                                  if (typeof window !== 'undefined' && (!window.matchMedia('(hover: hover)').matches || window.innerWidth < 768)) {
+                                    return;
+                                  }
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   setHoveredEp({ episode: ep, season: sNum, rect });
                                 }}
+                                onTouchStart={() => setHoveredEp(null)}
                                 onMouseLeave={() => setHoveredEp(null)}
                                 className={cn(
                                   'relative w-10 sm:w-11 h-9 rounded-lg shrink-0 flex flex-col items-center justify-center cursor-pointer gemstone-cell border border-black/40',
@@ -721,7 +742,7 @@ export function EpisodeTracker({
 
       {/* VIEW 2: SERIESGRAPH TREND LINE GRAPH */}
       {viewMode === 'graph' && (
-        <div className="p-6 rounded-2xl bg-[#0e1017] border border-white/10 shadow-2xl">
+        <div className="p-4 sm:p-6 rounded-2xl bg-[#0e1017] border border-white/10 shadow-2xl">
           <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-emerald-400" />
             <span>Chronological Rating Trajectory</span>
@@ -732,9 +753,13 @@ export function EpisodeTracker({
 
           {chronologicalEpisodes.length > 0 ? (
             <div className="space-y-4">
-              {/* SVG Line Graph */}
-              <div className="w-full h-64 relative bg-[#131520] rounded-xl border border-white/5 p-4 flex items-end">
-                <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${chronologicalEpisodes.length * 24} 200`}>
+              {/* SVG Line Graph (Horizontally scrollable for large series) */}
+              <div className="w-full overflow-x-auto no-scrollbar bg-[#131520] rounded-xl border border-white/5 p-4 shadow-inner">
+                <div
+                  style={{ minWidth: `${Math.max(320, chronologicalEpisodes.length * 24)}px` }}
+                  className="h-60 relative flex items-end"
+                >
+                  <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${chronologicalEpisodes.length * 24} 200`} preserveAspectRatio="none">
                   <defs>
                     <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#28b463" stopOpacity="0.4" />
@@ -798,8 +823,9 @@ export function EpisodeTracker({
                   })}
                 </svg>
               </div>
+            </div>
 
-              <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
                 <span>Start: S1E1</span>
                 <span>Ratings range (5.0 — 10.0)</span>
                 <span>End: S{chronologicalEpisodes[chronologicalEpisodes.length - 1].season}E{chronologicalEpisodes[chronologicalEpisodes.length - 1].episode.episode_number}</span>
@@ -917,7 +943,7 @@ export function EpisodeTracker({
 
       {/* EPISODE INSPECTOR MODAL (POPUP ON CELL CLICK) */}
       {activeEpisode && mounted && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="max-w-lg w-full max-h-[85vh] sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl bg-[#141624] border-t sm:border border-white/15 overflow-hidden shadow-2xl animate-in slide-in-from-bottom sm:fade-in sm:zoom-in-95 duration-200 flex flex-col">
             {/* Scrollable content container */}
             <div className="overflow-y-auto flex-1 overscroll-contain">

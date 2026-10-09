@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-w-0 min-h-screen pb-32 sm:pb-28 lg:pb-8">
           <TopHeader />
-          <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
             {children}
           </main>
         </div>

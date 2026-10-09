@@ -20,12 +20,15 @@ import {
   ChevronLeft,
   Loader2,
   Play,
+  Calendar,
 } from 'lucide-react';
 import { TrailerModal } from '@/components/details/TrailerModal';
 import { StreamingProviders } from '@/components/details/StreamingProviders';
 import { UpNextEpisodeCard } from '@/components/details/UpNextEpisodeCard';
 import { FinancialPerformanceSection } from '@/components/details/FinancialPerformanceSection';
 import { MediaRow } from '@/components/media/MediaRow';
+import { ReleaseDateBadge } from '@/components/media/ReleaseDateBadge';
+import { getReleaseEraInfo } from '@/lib/utils/releaseEra';
 
 function TitleDetailContent() {
   const searchParams = useSearchParams();
@@ -116,7 +119,8 @@ function TitleDetailContent() {
   const posterPath = libraryItem?.poster_path || metadata?.poster_path;
   const backdropPath = libraryItem?.backdrop_path || metadata?.backdrop_path;
   const releaseDate = libraryItem?.release_date || metadata?.release_date || metadata?.first_air_date;
-  const releaseYear = releaseDate ? releaseDate.substring(0, 4) : '';
+  const releaseInfo = getReleaseEraInfo(releaseDate, metadata?.status);
+  const releaseYear = releaseInfo.year || (releaseDate ? releaseDate.substring(0, 4) : '');
   const runtime = libraryItem?.runtime || metadata?.runtime;
   const genres = libraryItem?.genres || (metadata?.genres || []).map((g) => g.name);
   const cast = libraryItem?.cast || (metadata?.credits?.cast || []).slice(0, 10).map((c) => ({
@@ -188,7 +192,12 @@ function TitleDetailContent() {
         {/* Back navigation button */}
         <div className="absolute top-4 sm:top-6 left-4 sm:left-6 z-20">
           <button
-            onClick={() => router.back()}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem('watchvault_returning_from_title', 'true');
+              }
+              router.back();
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 backdrop-blur-md text-slate-200 hover:text-white border border-white/10 text-xs font-medium transition-colors cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -224,11 +233,18 @@ function TitleDetailContent() {
                 <span className="px-2 py-0.5 rounded-md bg-white/10 backdrop-blur-md border border-white/10 text-white font-mono text-[10px] font-semibold uppercase tracking-wider">
                   {mediaType === 'movie' ? 'Movie' : 'TV Series'}
                 </span>
-                {releaseYear && (
+                {releaseDate ? (
+                  <ReleaseDateBadge
+                    releaseDate={releaseDate}
+                    status={metadata?.status}
+                    size="sm"
+                    showFullDate={true}
+                  />
+                ) : releaseYear ? (
                   <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-300 font-mono text-[10px]">
                     {releaseYear}
                   </span>
-                )}
+                ) : null}
                 {runtime ? (
                   <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-300 font-mono text-[10px] flex items-center gap-1">
                     <Clock className="w-2.5 h-2.5 text-slate-400" />
@@ -414,11 +430,18 @@ function TitleDetailContent() {
                 <span className="px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-md border border-white/10 text-white font-mono text-xs font-semibold uppercase tracking-wider">
                   {mediaType === 'movie' ? 'Movie' : 'TV Series'}
                 </span>
-                {releaseYear && (
+                {releaseDate ? (
+                  <ReleaseDateBadge
+                    releaseDate={releaseDate}
+                    status={metadata?.status}
+                    size="md"
+                    showFullDate={true}
+                  />
+                ) : releaseYear ? (
                   <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-slate-300 font-mono text-xs">
                     {releaseYear}
                   </span>
-                )}
+                ) : null}
                 {runtime && (
                   <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-slate-300 font-mono text-xs flex items-center gap-1">
                     <Clock className="w-3 h-3 text-slate-400" />
@@ -430,6 +453,12 @@ function TitleDetailContent() {
                     {metadata.number_of_seasons} Seasons ({metadata.number_of_episodes || 0} eps)
                   </span>
                 )}
+                {metadata?.vote_average && metadata.vote_average > 0 ? (
+                  <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                    <Star className="w-3.5 h-3.5 fill-amber-400" />
+                    <span>{metadata.vote_average.toFixed(1)} / 10</span>
+                  </span>
+                ) : null}
               </div>
 
               {/* Title */}
@@ -479,6 +508,41 @@ function TitleDetailContent() {
               </div>
             )}
 
+            {/* Theatrical Premiere & Release Details Spotlight */}
+            {releaseDate && (
+              <div className="mb-6 p-3.5 sm:p-4 rounded-2xl bg-[#11131e] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 shrink-0">
+                    <Calendar className="w-5 h-5 text-red-500" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      {releaseInfo.isUpcoming
+                        ? 'Scheduled Premiere Date'
+                        : mediaType === 'movie'
+                        ? 'Theatrical Release Date'
+                        : 'Series Premiere Date'}
+                    </div>
+                    <div className="text-sm sm:text-base font-bold text-white flex flex-wrap items-center gap-2 mt-0.5 font-mono">
+                      <span>{releaseInfo.fullFormattedDate}</span>
+                      {releaseInfo.relativeLabel && (
+                        <span className="text-xs font-normal text-slate-400 font-sans">
+                          ({releaseInfo.relativeLabel})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <ReleaseDateBadge
+                  releaseDate={releaseDate}
+                  status={metadata?.status}
+                  size="md"
+                  showFullDate={false}
+                />
+              </div>
+            )}
+
             {/* Cast Carousel */}
             <CastCarousel cast={cast} />
 
@@ -491,6 +555,7 @@ function TitleDetailContent() {
               voteAverage={metadata?.vote_average || libraryItem?.rating || 0}
               voteCount={metadata?.vote_count || 0}
               status={metadata?.status}
+              releaseDate={releaseDate}
               numberOfSeasons={metadata?.number_of_seasons || libraryItem?.number_of_seasons}
               numberOfEpisodes={metadata?.number_of_episodes || libraryItem?.number_of_episodes}
             />

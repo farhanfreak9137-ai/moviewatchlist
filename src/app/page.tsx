@@ -510,12 +510,12 @@ export default function HomePage() {
       <HeroBanner items={heroItems} isLoading={isDiscoveryLoading && heroItems.length === 0} />
 
       {/* Discovery Hub Selector: All, Bollywood & Hindi, Hollywood & English, TV Series Hub */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-3xl glass-island border border-white/10 shadow-2xl inner-glow">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 sm:p-3.5 rounded-2xl sm:rounded-3xl glass-island border border-white/10 shadow-2xl inner-glow">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
           <button
             onClick={() => handleHubChange('all')}
             className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce',
+              'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce whitespace-nowrap',
               activeHub === 'all'
                 ? 'bg-red-600 text-white shadow-[0_4px_16px_rgba(229,9,20,0.45)]'
                 : 'bg-white/5 text-slate-400 hover:text-white border border-white/5 hover:bg-white/10'
@@ -528,7 +528,7 @@ export default function HomePage() {
           <button
             onClick={() => handleHubChange('hindi')}
             className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce',
+              'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce whitespace-nowrap',
               activeHub === 'hindi'
                 ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-[0_4px_16px_rgba(217,119,6,0.45)]'
                 : 'bg-white/5 text-slate-400 hover:text-white border border-white/5 hover:bg-white/10'
@@ -541,7 +541,7 @@ export default function HomePage() {
           <button
             onClick={() => handleHubChange('english')}
             className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce',
+              'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce whitespace-nowrap',
               activeHub === 'english'
                 ? 'bg-blue-600 text-white shadow-[0_4px_16px_rgba(37,99,235,0.45)]'
                 : 'bg-white/5 text-slate-400 hover:text-white border border-white/5 hover:bg-white/10'
@@ -554,7 +554,7 @@ export default function HomePage() {
           <button
             onClick={() => handleHubChange('tv')}
             className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce',
+              'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 tap-bounce whitespace-nowrap',
               activeHub === 'tv'
                 ? 'bg-purple-600 text-white shadow-[0_4px_16px_rgba(147,51,234,0.45)]'
                 : 'bg-white/5 text-slate-400 hover:text-white border border-white/5 hover:bg-white/10'
@@ -565,14 +565,14 @@ export default function HomePage() {
           </button>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
+        <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1.5 sm:pt-0 border-t border-white/5 sm:border-t-0">
           {libraryItems.length > 0 && (
             <button
               onClick={() => {
                 triggerHaptic('medium');
                 setIsDiceOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-red-600/20 to-purple-600/20 hover:from-red-600/30 hover:to-purple-600/30 border border-red-500/30 text-white text-xs font-semibold transition-all tap-bounce cursor-pointer shadow-[0_0_16px_rgba(229,9,20,0.2)]"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl bg-gradient-to-r from-red-600/20 to-purple-600/20 hover:from-red-600/30 hover:to-purple-600/30 border border-red-500/30 text-white text-[11px] sm:text-xs font-semibold transition-all tap-bounce cursor-pointer shadow-[0_0_16px_rgba(229,9,20,0.2)]"
               title="Can't decide? Roll the WatchVault dice"
             >
               <Dices className="w-3.5 h-3.5 text-red-400 animate-pulse" />
@@ -582,7 +582,7 @@ export default function HomePage() {
 
           <Link
             href="/settings"
-            className="text-slate-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+            className="text-slate-400 hover:text-white text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 px-2 py-1"
           >
             <span>Preferences</span>
             <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -930,18 +930,18 @@ export default function HomePage() {
         </p>
       </section>
 
-      {/* Floating Quick Surprise Me Button (Bottom right on mobile & desktop above nav) */}
+      {/* Floating Quick Surprise Me Button (Only for large desktop viewports where it does not overlap content or mobile navigation) */}
       {libraryItems.length > 0 && (
         <button
           onClick={() => {
             triggerHaptic('medium');
             setIsDiceOpen(true);
           }}
-          className="fixed z-40 right-4 sm:right-6 bottom-[calc(4.8rem+env(safe-area-inset-bottom))] lg:bottom-6 p-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-xl shadow-red-950/60 border border-red-400/30 transition-all active:scale-95 hover:scale-105 cursor-pointer flex items-center gap-2 group"
+          className="hidden lg:flex fixed z-40 right-6 bottom-6 p-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-xl shadow-red-950/60 border border-red-400/30 transition-all active:scale-95 hover:scale-105 cursor-pointer items-center gap-2 group"
           title="Can't decide? Roll the WatchVault dice"
         >
           <Dices className="w-5 h-5 group-hover:rotate-45 transition-transform" />
-          <span className="hidden md:inline text-xs font-bold tracking-tight">Surprise Me</span>
+          <span className="text-xs font-bold tracking-tight">Surprise Me</span>
         </button>
       )}
 

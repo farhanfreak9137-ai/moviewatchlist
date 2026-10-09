@@ -59,9 +59,9 @@ export function MediaRow({ title, subtitle, action, items, emptyMessage, isLoadi
           </div>
           {action}
         </div>
-        <div className="flex gap-4 overflow-hidden -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex gap-3 sm:gap-4 overflow-hidden -mx-3 px-3 sm:mx-0 sm:px-0">
           {[1, 2, 3, 4, 5, 6].map((n) => (
-            <div key={n} className="w-[150px] sm:w-[180px] md:w-[200px] shrink-0">
+            <div key={n} className="w-[138px] sm:w-[170px] md:w-[195px] shrink-0">
               <div className="aspect-[2/3] w-full rounded-2xl bg-[#141724] shimmer-sweep border border-white/5 mb-3" />
               <div className="h-3.5 w-3/4 bg-white/10 rounded-md shimmer-sweep mb-1.5" />
               <div className="h-3 w-1/2 bg-white/5 rounded-md shimmer-sweep" />
@@ -135,12 +135,12 @@ export function MediaRow({ title, subtitle, action, items, emptyMessage, isLoadi
             sessionStorage.setItem(rowStorageKey, scrollRef.current.scrollLeft.toString());
           }
         }}
-        className="flex gap-4 overflow-x-auto no-scrollbar pb-3 snap-x scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0"
+        className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pb-3 snap-x scroll-smooth -mx-3 px-3 sm:mx-0 sm:px-0"
       >
         {items.map((item) => (
           <div
             key={`${item.mediaType}-${item.id}`}
-            className="w-[150px] sm:w-[180px] md:w-[200px] shrink-0 snap-start"
+            className="w-[138px] sm:w-[170px] md:w-[195px] shrink-0 snap-start"
           >
             <MediaCard
               id={item.id}

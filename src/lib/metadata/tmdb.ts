@@ -380,6 +380,130 @@ export const tmdbService = {
     }));
   },
 
+  // Discover media by genre, language, quality, and year with full metadata
+  async discoverMediaWithMeta(
+    mediaType: 'movie' | 'tv',
+    options: {
+      withGenres?: number[];
+      minVoteAverage?: number;
+      minVoteCount?: number;
+      language?: string;
+      sortBy?: string;
+      exactYear?: number;
+      yearGte?: number;
+      yearLte?: number;
+      page?: number;
+    } = {}
+  ): Promise<{ results: TMDBMediaItem[]; totalPages: number; totalResults: number }> {
+    const {
+      withGenres = [],
+      minVoteAverage,
+      minVoteCount = 80,
+      language,
+      sortBy = 'popularity.desc',
+      exactYear,
+      yearGte,
+      yearLte,
+      page = 1,
+    } = options;
+
+    const genreParam = withGenres.length > 0 ? withGenres.join(',') : '';
+    const cacheKey = `discover_meta_${mediaType}_g${genreParam}_l${language || 'all'}_min${minVoteAverage || 0}_y${exactYear || `${yearGte || ''}-${yearLte || ''}`}_sort${sortBy}_p${page}`;
+
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('sort_by', sortBy);
+    if (genreParam) params.set('with_genres', genreParam);
+    if (language) params.set('with_original_language', language);
+    if (minVoteAverage) {
+      params.set('vote_average.gte', String(minVoteAverage));
+      params.set('vote_count.gte', String(minVoteCount));
+    }
+    if (exactYear) {
+      if (mediaType === 'movie') params.set('primary_release_year', String(exactYear));
+      else params.set('first_air_date_year', String(exactYear));
+    } else {
+      if (yearGte) {
+        if (mediaType === 'movie') params.set('primary_release_date.gte', `${yearGte}-01-01`);
+        else params.set('first_air_date.gte', `${yearGte}-01-01`);
+      }
+      if (yearLte) {
+        if (mediaType === 'movie') params.set('primary_release_date.lte', `${yearLte}-12-31`);
+        else params.set('first_air_date.lte', `${yearLte}-12-31`);
+      }
+    }
+
+    const endpoint = `discover/${mediaType}?${params.toString()}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[]; total_pages: number; total_results: number }>(
+      cacheKey,
+      endpoint,
+      14400
+    );
+    return {
+      results: (res.results || []).map((item) => ({
+        ...item,
+        media_type: mediaType,
+      })),
+      totalPages: res.total_pages || 1,
+      totalResults: res.total_results || 0,
+    };
+  },
+
+  // Discover all media pages in parallel with deep pagination support
+  async discoverAllMedia(
+    mediaType: 'movie' | 'tv',
+    options: {
+      withGenres?: number[];
+      minVoteAverage?: number;
+      minVoteCount?: number;
+      language?: string;
+      sortBy?: string;
+      exactYear?: number;
+      yearGte?: number;
+      yearLte?: number;
+      maxPages?: number;
+      startPage?: number;
+    } = {}
+  ): Promise<{ results: TMDBMediaItem[]; totalPages: number; totalResults: number; lastPageFetched: number }> {
+    const { maxPages = 15, startPage = 1, ...rest } = options;
+    const firstPage = await this.discoverMediaWithMeta(mediaType, { ...rest, page: startPage });
+    const totalPages = Math.min(firstPage.totalPages || 1, 500);
+    const endPage = Math.min(totalPages, startPage + maxPages - 1);
+
+    if (endPage <= startPage) {
+      return {
+        results: firstPage.results,
+        totalPages,
+        totalResults: firstPage.totalResults,
+        lastPageFetched: startPage,
+      };
+    }
+
+    const pagePromises: Promise<{ results: TMDBMediaItem[]; totalPages: number; totalResults: number }>[] = [];
+    for (let p = startPage + 1; p <= endPage; p++) {
+      pagePromises.push(
+        this.discoverMediaWithMeta(mediaType, { ...rest, page: p }).catch(() => ({
+          results: [],
+          totalPages: 0,
+          totalResults: 0,
+        }))
+      );
+    }
+
+    const otherPages = await Promise.all(pagePromises);
+    const combined = [...firstPage.results];
+    for (const op of otherPages) {
+      combined.push(...op.results);
+    }
+
+    return {
+      results: combined,
+      totalPages,
+      totalResults: firstPage.totalResults,
+      lastPageFetched: endPage,
+    };
+  },
+
   // Search people / actors
   async searchPerson(query: string, page: number = 1): Promise<TMDBPersonResult[]> {
     const trimmed = query.trim();
@@ -517,19 +641,52 @@ export const tmdbService = {
     }
   },
 
-  // Discover multiple pages by genres
+  // Discover multiple pages by genres with deep pagination support
   async discoverAllByGenres(
     genreIds: number[],
     mediaType: 'movie' | 'tv' = 'movie',
-    maxPages: number = 5
-  ): Promise<TMDBMediaItem[]> {
-    if (!genreIds || genreIds.length === 0) return [];
-    const pagePromises = [];
-    for (let p = 1; p <= maxPages; p++) {
-      pagePromises.push(this.discoverByGenres(genreIds, mediaType, p).catch(() => []));
+    maxPages: number = 15,
+    startPage: number = 1
+  ): Promise<{ results: TMDBMediaItem[]; totalPages: number; totalResults: number; lastPageFetched: number }> {
+    if (!genreIds || genreIds.length === 0) {
+      return { results: [], totalPages: 0, totalResults: 0, lastPageFetched: 0 };
     }
-    const pages = await Promise.all(pagePromises);
-    return pages.flat();
+    const firstPage = await this.discoverByGenresWithMeta(genreIds, mediaType, startPage);
+    const totalPages = Math.min(firstPage.totalPages || 1, 500);
+    const endPage = Math.min(totalPages, startPage + maxPages - 1);
+
+    if (endPage <= startPage) {
+      return {
+        results: firstPage.results,
+        totalPages,
+        totalResults: firstPage.totalResults,
+        lastPageFetched: startPage,
+      };
+    }
+
+    const pagePromises: Promise<{ results: TMDBMediaItem[]; totalPages: number; totalResults: number }>[] = [];
+    for (let p = startPage + 1; p <= endPage; p++) {
+      pagePromises.push(
+        this.discoverByGenresWithMeta(genreIds, mediaType, p).catch(() => ({
+          results: [],
+          totalPages: 0,
+          totalResults: 0,
+        }))
+      );
+    }
+
+    const otherPages = await Promise.all(pagePromises);
+    const combined = [...firstPage.results];
+    for (const op of otherPages) {
+      combined.push(...op.results);
+    }
+
+    return {
+      results: combined,
+      totalPages,
+      totalResults: firstPage.totalResults,
+      lastPageFetched: endPage,
+    };
   },
 
   // Multi-search fetching multiple pages (e.g. up to 3 pages = 60 items)
@@ -602,6 +759,32 @@ export const tmdbService = {
       ...item,
       media_type: mediaType,
     }));
+  },
+
+  // Discover by genres returning pagination metadata (total_pages, total_results)
+  async discoverByGenresWithMeta(
+    genreIds: number[],
+    mediaType: 'movie' | 'tv' = 'movie',
+    page: number = 1
+  ): Promise<{ results: TMDBMediaItem[]; totalPages: number; totalResults: number }> {
+    if (!genreIds || genreIds.length === 0) {
+      return { results: [], totalPages: 0, totalResults: 0 };
+    }
+    const key = `discover_genre_${mediaType}_${genreIds.join('_')}_p${page}`;
+    const endpoint = `discover/${mediaType}?with_genres=${genreIds.join(',')}&sort_by=popularity.desc&page=${page}`;
+    const res = await fetchWithCache<{ results: TMDBMediaItem[]; total_pages: number; total_results: number }>(
+      key,
+      endpoint,
+      14400
+    );
+    return {
+      results: (res.results || []).map((item) => ({
+        ...item,
+        media_type: mediaType,
+      })),
+      totalPages: res.total_pages || 1,
+      totalResults: res.total_results || 0,
+    };
   },
 
   // Raw multi-search that includes person results (used by autocomplete and entity recognition)

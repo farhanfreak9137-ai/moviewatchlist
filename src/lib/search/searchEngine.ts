@@ -31,6 +31,11 @@ export interface SmartSearchResult {
     totalTitles?: number;
     hasMorePages?: boolean;
     lastFetchedPage?: number;
+    lastFetchedMoviePage?: number;
+    lastFetchedTvPage?: number;
+    totalMoviePages?: number;
+    totalTvPages?: number;
+    totalAvailableTitles?: number;
   };
   originalQuery: string;
   executedQuery: string;
@@ -58,13 +63,41 @@ export interface AutocompleteResults {
   didYouMean?: string;
 }
 
+export interface SearchFilterState {
+  genres: string[];          // Genre IDs, e.g. ['action', 'scifi']
+  minRating: number | null;  // e.g. 7.0, 7.5, 8.0, 8.5
+  language: string | null;   // e.g. 'en', 'ja', 'ko', 'hi'
+  year: string | null;       // e.g. '2026', '2025', '2024', '2020-2023', '2010s', '2000s', '90s', 'pre-1990', or specific year string
+  sortBy: string;            // 'popularity.desc' | 'vote_average.desc' | 'primary_release_date.desc' | 'primary_release_date.asc' | 'title.asc'
+}
+
+export const DEFAULT_SEARCH_FILTERS: SearchFilterState = {
+  genres: [],
+  minRating: null,
+  language: null,
+  year: null,
+  sortBy: 'popularity.desc',
+};
+
+export function hasActiveSearchFilters(filters?: SearchFilterState | null): boolean {
+  if (!filters) return false;
+  return (
+    filters.genres.length > 0 ||
+    filters.minRating !== null ||
+    filters.language !== null ||
+    filters.year !== null ||
+    (filters.sortBy !== 'popularity.desc' && Boolean(filters.sortBy))
+  );
+}
+
 /**
  * Executes a full smart search query, automatically handling:
- * 1. Franchise detection (Marvel, DC, Star Wars, Pixar, etc.)
- * 2. Genre detection (Action, Sci-Fi, Horror, etc.)
- * 3. Actor / Director detection (Keanu Reeves, Christopher Nolan, etc.)
- * 4. Typo tolerance and automatic spell-correction fallback
- * 5. Offline search fallback across IndexedDB
+ * 1. Dedicated filter boxes (genres, rating, language, year, sort)
+ * 2. Franchise detection (Marvel, DC, Star Wars, Pixar, etc.)
+ * 3. Genre detection (Action, Sci-Fi, Horror, etc.)
+ * 4. Actor / Director detection (Keanu Reeves, Christopher Nolan, etc.)
+ * 5. Typo tolerance and automatic spell-correction fallback
+ * 6. Offline search fallback across IndexedDB
  */
 export async function executeSmartSearch(
   rawQuery: string,
@@ -73,12 +106,17 @@ export async function executeSmartSearch(
     forceOriginal?: boolean;
     searchType?: 'all' | 'person' | 'movie' | 'tv';
     personId?: number;
+    filters?: SearchFilterState;
   } = {}
 ): Promise<SmartSearchResult> {
   const query = rawQuery.trim();
-  const { libraryItems = [], forceOriginal = false, searchType = 'all', personId } = options;
+  const { libraryItems = [], forceOriginal = false, searchType = 'all', personId, filters } = options;
+  const hasFilters = hasActiveSearchFilters(filters);
 
   if (!query) {
+    if (hasFilters && filters) {
+      return await resolveFilteredSearch(filters, libraryItems);
+    }
     return {
       type: 'standard',
       items: [],
@@ -124,7 +162,7 @@ export async function executeSmartSearch(
     }
 
     // 3. FETCH MEDIA SEARCH CANDIDATES FIRST
-    const items = await tmdbService.searchMultiPages(query, 3);
+    let items = await tmdbService.searchMultiPages(query, 3);
 
     // Check if there is an exact or near-exact media title match
     const hasExactMediaTitleMatch = items.some((item) => {
@@ -261,6 +299,10 @@ export async function executeSmartSearch(
       if (normBest !== norm) {
         didYouMean = bestCorrection.corrected;
       }
+    }
+
+    if (hasFilters && filters) {
+      items = applyFiltersToMediaItems(items, filters);
     }
 
     return {
@@ -640,13 +682,24 @@ export async function loadMoreStudioCatalog(
 }
 
 async function resolveGenreSearch(genre: GenreDefinition, originalQuery: string): Promise<SmartSearchResult> {
-  const [movies, series] = await Promise.all([
-    tmdbService.discoverAllByGenres([genre.movieGenreId], 'movie', 5).catch(() => []),
-    tmdbService.discoverAllByGenres([genre.tvGenreId], 'tv', 5).catch(() => []),
+  const initialPages = 15; // 15 pages = 300 movies + 300 tv shows = 600 titles initially!
+  const [movieRes, seriesRes] = await Promise.all([
+    tmdbService.discoverAllByGenres([genre.movieGenreId], 'movie', initialPages, 1).catch(() => ({
+      results: [] as TMDBMediaItem[],
+      totalPages: 0,
+      totalResults: 0,
+      lastPageFetched: 0,
+    })),
+    tmdbService.discoverAllByGenres([genre.tvGenreId], 'tv', initialPages, 1).catch(() => ({
+      results: [] as TMDBMediaItem[],
+      totalPages: 0,
+      totalResults: 0,
+      lastPageFetched: 0,
+    })),
   ]);
 
   const map = new Map<string, TMDBMediaItem>();
-  [...movies, ...series].forEach((item) => {
+  [...movieRes.results, ...seriesRes.results].forEach((item) => {
     const key = `${item.media_type || (item.name ? 'tv' : 'movie')}_${item.id}`;
     if (!map.has(key)) {
       map.set(key, {
@@ -657,6 +710,8 @@ async function resolveGenreSearch(genre: GenreDefinition, originalQuery: string)
   });
 
   const merged = Array.from(map.values()).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+  const hasMore = movieRes.totalPages > initialPages || seriesRes.totalPages > initialPages;
+  const totalAvailable = (movieRes.totalResults || 0) + (seriesRes.totalResults || 0);
 
   return {
     type: 'genre',
@@ -664,15 +719,99 @@ async function resolveGenreSearch(genre: GenreDefinition, originalQuery: string)
     entityInfo: {
       id: genre.id,
       title: `${genre.name} Catalog`,
-      subtitle: `Curated Genre Collection`,
+      subtitle:
+        totalAvailable > 0
+          ? `Curated Genre Collection • ${totalAvailable.toLocaleString()} Available Titles in Vault`
+          : `Curated Genre Collection`,
       description: genre.description,
       bannerGradient: genre.bannerGradient,
       badgeBorder: genre.badgeBorder,
       badgeText: genre.badgeText,
       totalTitles: merged.length,
+      hasMorePages: hasMore,
+      lastFetchedPage: initialPages,
+      lastFetchedMoviePage: movieRes.lastPageFetched || initialPages,
+      lastFetchedTvPage: seriesRes.lastPageFetched || initialPages,
+      totalMoviePages: movieRes.totalPages,
+      totalTvPages: seriesRes.totalPages,
+      totalAvailableTitles: totalAvailable,
     },
     originalQuery,
     executedQuery: genre.name,
+  };
+}
+
+export async function loadMoreGenreCatalog(
+  genreId: string,
+  startMoviePage: number,
+  startTvPage: number,
+  pageCount: number = 10,
+  mediaTypeFilter: 'all' | 'movie' | 'tv' = 'all'
+): Promise<{
+  items: TMDBMediaItem[];
+  lastFetchedMoviePage: number;
+  lastFetchedTvPage: number;
+  hasMorePages: boolean;
+}> {
+  const genre = GENRE_MAP.find((g) => g.id === genreId);
+  if (!genre) {
+    return {
+      items: [],
+      lastFetchedMoviePage: startMoviePage,
+      lastFetchedTvPage: startTvPage,
+      hasMorePages: false,
+    };
+  }
+
+  const tasks: Promise<{
+    type: 'movie' | 'tv';
+    results: TMDBMediaItem[];
+    totalPages: number;
+    lastPageFetched: number;
+  }>[] = [];
+
+  if (mediaTypeFilter === 'all' || mediaTypeFilter === 'movie') {
+    tasks.push(
+      tmdbService
+        .discoverAllByGenres([genre.movieGenreId], 'movie', pageCount, startMoviePage + 1)
+        .then((res) => ({ type: 'movie' as const, ...res }))
+        .catch(() => ({ type: 'movie' as const, results: [], totalPages: 0, lastPageFetched: startMoviePage }))
+    );
+  }
+
+  if (mediaTypeFilter === 'all' || mediaTypeFilter === 'tv') {
+    tasks.push(
+      tmdbService
+        .discoverAllByGenres([genre.tvGenreId], 'tv', pageCount, startTvPage + 1)
+        .then((res) => ({ type: 'tv' as const, ...res }))
+        .catch(() => ({ type: 'tv' as const, results: [], totalPages: 0, lastPageFetched: startTvPage }))
+    );
+  }
+
+  const responses = await Promise.all(tasks);
+  const movieRes = responses.find((r) => r.type === 'movie');
+  const tvRes = responses.find((r) => r.type === 'tv');
+
+  const newLastMoviePage = movieRes ? movieRes.lastPageFetched : startMoviePage;
+  const newLastTvPage = tvRes ? tvRes.lastPageFetched : startTvPage;
+
+  const hasMoreMovies = movieRes ? movieRes.lastPageFetched < movieRes.totalPages : true;
+  const hasMoreTv = tvRes ? tvRes.lastPageFetched < tvRes.totalPages : true;
+
+  const hasMore =
+    mediaTypeFilter === 'movie'
+      ? hasMoreMovies
+      : mediaTypeFilter === 'tv'
+      ? hasMoreTv
+      : hasMoreMovies || hasMoreTv;
+
+  const combined = responses.flatMap((r) => r.results);
+
+  return {
+    items: combined,
+    lastFetchedMoviePage: newLastMoviePage,
+    lastFetchedTvPage: newLastTvPage,
+    hasMorePages: hasMore,
   };
 }
 
@@ -873,10 +1012,318 @@ function performOfflineSearch(query: string, libraryItems: LibraryItem[]): Smart
       popularity: 1,
     }));
 
+    return {
+      type: 'standard',
+      items: matched as TMDBMediaItem[],
+      originalQuery: query,
+      executedQuery: query,
+    };
+  }
+
+export function parseYearFilter(year: string | null): { exactYear?: number; yearGte?: number; yearLte?: number } {
+  if (!year) return {};
+  if (year === '2020-2023') return { yearGte: 2020, yearLte: 2023 };
+  if (year === '2010s') return { yearGte: 2010, yearLte: 2019 };
+  if (year === '2000s') return { yearGte: 2000, yearLte: 2009 };
+  if (year === '90s') return { yearGte: 1990, yearLte: 1999 };
+  if (year === 'pre-1990') return { yearLte: 1989 };
+  const num = parseInt(year, 10);
+  if (!isNaN(num) && num > 1800 && num < 2100) {
+    return { exactYear: num };
+  }
+  return {};
+}
+
+export function parseGenreIds(genreIds: string[]): { movieGenreIds: number[]; tvGenreIds: number[] } {
+  const movieGenreIds: number[] = [];
+  const tvGenreIds: number[] = [];
+  for (const gid of genreIds) {
+    const def = GENRE_MAP.find((g) => g.id === gid);
+    if (def) {
+      if (!movieGenreIds.includes(def.movieGenreId)) movieGenreIds.push(def.movieGenreId);
+      if (!tvGenreIds.includes(def.tvGenreId)) tvGenreIds.push(def.tvGenreId);
+    }
+  }
+  return { movieGenreIds, tvGenreIds };
+}
+
+export function applyFiltersToMediaItems(
+  items: TMDBMediaItem[],
+  filters: SearchFilterState
+): TMDBMediaItem[] {
+  let filtered = [...items];
+  const { movieGenreIds, tvGenreIds } = parseGenreIds(filters.genres);
+  const allGenreIds = new Set([...movieGenreIds, ...tvGenreIds]);
+  const yearOpts = parseYearFilter(filters.year);
+
+  // 1. Genre filter
+  if (allGenreIds.size > 0) {
+    filtered = filtered.filter((item) => {
+      if (!item.genre_ids || item.genre_ids.length === 0) return true;
+      return item.genre_ids.some((gid) => allGenreIds.has(gid));
+    });
+  }
+
+  // 2. Minimum Rating
+  if (filters.minRating !== null && filters.minRating > 0) {
+    filtered = filtered.filter((item) => (item.vote_average || 0) >= filters.minRating!);
+  }
+
+  // 3. Year
+  if (yearOpts.exactYear) {
+    filtered = filtered.filter((item) => {
+      const date = item.release_date || item.first_air_date || '';
+      return date.startsWith(String(yearOpts.exactYear));
+    });
+  } else if (yearOpts.yearGte || yearOpts.yearLte) {
+    filtered = filtered.filter((item) => {
+      const date = item.release_date || item.first_air_date || '';
+      const year = parseInt(date.slice(0, 4), 10);
+      if (isNaN(year)) return false;
+      if (yearOpts.yearGte && year < yearOpts.yearGte) return false;
+      if (yearOpts.yearLte && year > yearOpts.yearLte) return false;
+      return true;
+    });
+  }
+
+  // 4. Sort
+  filtered.sort((a, b) => {
+    if (filters.sortBy === 'vote_average.desc') {
+      return (b.vote_average || 0) - (a.vote_average || 0);
+    }
+    if (filters.sortBy === 'primary_release_date.desc') {
+      return (b.release_date || b.first_air_date || '').localeCompare(a.release_date || a.first_air_date || '');
+    }
+    if (filters.sortBy === 'primary_release_date.asc') {
+      return (a.release_date || a.first_air_date || '').localeCompare(b.release_date || b.first_air_date || '');
+    }
+    if (filters.sortBy === 'title.asc') {
+      return (a.title || a.name || '').localeCompare(b.title || b.name || '');
+    }
+    return (b.popularity || 0) - (a.popularity || 0);
+  });
+
+  return filtered;
+}
+
+export async function resolveFilteredSearch(
+  filters: SearchFilterState,
+  libraryItems: LibraryItem[] = []
+): Promise<SmartSearchResult> {
+  const initialPages = 15;
+  const { movieGenreIds, tvGenreIds } = parseGenreIds(filters.genres);
+  const yearOpts = parseYearFilter(filters.year);
+
+  const [movieRes, seriesRes] = await Promise.all([
+    tmdbService
+      .discoverAllMedia('movie', {
+        withGenres: movieGenreIds,
+        minVoteAverage: filters.minRating || undefined,
+        language: filters.language || undefined,
+        sortBy: filters.sortBy || 'popularity.desc',
+        exactYear: yearOpts.exactYear,
+        yearGte: yearOpts.yearGte,
+        yearLte: yearOpts.yearLte,
+        maxPages: initialPages,
+        startPage: 1,
+      })
+      .catch(() => ({ results: [] as TMDBMediaItem[], totalPages: 0, totalResults: 0, lastPageFetched: 0 })),
+    tmdbService
+      .discoverAllMedia('tv', {
+        withGenres: tvGenreIds,
+        minVoteAverage: filters.minRating || undefined,
+        language: filters.language || undefined,
+        sortBy: filters.sortBy || 'popularity.desc',
+        exactYear: yearOpts.exactYear,
+        yearGte: yearOpts.yearGte,
+        yearLte: yearOpts.yearLte,
+        maxPages: initialPages,
+        startPage: 1,
+      })
+      .catch(() => ({ results: [] as TMDBMediaItem[], totalPages: 0, totalResults: 0, lastPageFetched: 0 })),
+  ]);
+
+  const map = new Map<string, TMDBMediaItem>();
+  [...movieRes.results, ...seriesRes.results].forEach((item) => {
+    const key = `${item.media_type || (item.name ? 'tv' : 'movie')}_${item.id}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        ...item,
+        media_type: (item.media_type || (item.name ? 'tv' : 'movie')) as MediaType,
+      });
+    }
+  });
+
+  const merged = Array.from(map.values()).sort((a, b) => {
+    if (filters.sortBy === 'vote_average.desc') {
+      return (b.vote_average || 0) - (a.vote_average || 0);
+    }
+    if (filters.sortBy === 'primary_release_date.desc') {
+      return (b.release_date || b.first_air_date || '').localeCompare(a.release_date || a.first_air_date || '');
+    }
+    if (filters.sortBy === 'primary_release_date.asc') {
+      return (a.release_date || a.first_air_date || '').localeCompare(b.release_date || b.first_air_date || '');
+    }
+    if (filters.sortBy === 'title.asc') {
+      return (a.title || a.name || '').localeCompare(b.title || b.name || '');
+    }
+    return (b.popularity || 0) - (a.popularity || 0);
+  });
+
+  const hasMore = movieRes.totalPages > initialPages || seriesRes.totalPages > initialPages;
+  const totalAvailable = (movieRes.totalResults || 0) + (seriesRes.totalResults || 0);
+
+  // Generate readable title & subtitle
+  const titleParts: string[] = [];
+  if (filters.genres.length > 0) {
+    const genreNames = filters.genres
+      .map((gid) => GENRE_MAP.find((g) => g.id === gid)?.name || gid)
+      .join(' & ');
+    titleParts.push(genreNames);
+  } else {
+    titleParts.push('Cinema Vault');
+  }
+
+  const subParts: string[] = [];
+  if (filters.language) {
+    const langMap: Record<string, string> = {
+      en: 'English',
+      ja: 'Japanese',
+      ko: 'Korean',
+      hi: 'Hindi',
+      es: 'Spanish',
+      fr: 'French',
+      de: 'German',
+      it: 'Italian',
+      zh: 'Chinese',
+    };
+    subParts.push(langMap[filters.language] || filters.language.toUpperCase());
+  }
+  if (filters.year) subParts.push(filters.year);
+  if (filters.minRating) subParts.push(`Rated ${filters.minRating}+ ⭐`);
+  if (filters.sortBy && filters.sortBy !== 'popularity.desc') {
+    const sortLabels: Record<string, string> = {
+      'vote_average.desc': 'Top Rated',
+      'primary_release_date.desc': 'Newest',
+      'primary_release_date.asc': 'Oldest',
+      'title.asc': 'A-Z',
+    };
+    if (sortLabels[filters.sortBy]) subParts.push(sortLabels[filters.sortBy]);
+  }
+
+  const subtitleStr = subParts.length > 0 ? subParts.join(' • ') : 'Custom Filtered Discovery';
+
   return {
-    type: 'standard',
-    items: matched as TMDBMediaItem[],
-    originalQuery: query,
-    executedQuery: query,
+    type: 'genre',
+    items: merged,
+    entityInfo: {
+      id: 'custom_filter',
+      title: `${titleParts.join(' ')} Discovery`,
+      subtitle:
+        totalAvailable > 0
+          ? `${subtitleStr} • ${totalAvailable.toLocaleString()} Available Titles in Vault`
+          : subtitleStr,
+      description: `Curated discovery matched across your selected filters in WatchVault.`,
+      bannerGradient: 'from-purple-950/80 via-red-950/40 to-transparent',
+      badgeBorder: 'border-purple-500/40',
+      badgeText: 'text-purple-300',
+      totalTitles: merged.length,
+      hasMorePages: hasMore,
+      lastFetchedPage: initialPages,
+      lastFetchedMoviePage: movieRes.lastPageFetched || initialPages,
+      lastFetchedTvPage: seriesRes.lastPageFetched || initialPages,
+      totalMoviePages: movieRes.totalPages,
+      totalTvPages: seriesRes.totalPages,
+      totalAvailableTitles: totalAvailable,
+    },
+    originalQuery: '',
+    executedQuery: titleParts.join(' '),
+  };
+}
+
+export async function loadMoreFilteredCatalog(
+  filters: SearchFilterState,
+  startMoviePage: number,
+  startTvPage: number,
+  pageCount: number = 10,
+  mediaTypeFilter: 'all' | 'movie' | 'tv' = 'all'
+): Promise<{
+  items: TMDBMediaItem[];
+  lastFetchedMoviePage: number;
+  lastFetchedTvPage: number;
+  hasMorePages: boolean;
+}> {
+  const { movieGenreIds, tvGenreIds } = parseGenreIds(filters.genres);
+  const yearOpts = parseYearFilter(filters.year);
+
+  const tasks: Promise<{
+    type: 'movie' | 'tv';
+    results: TMDBMediaItem[];
+    totalPages: number;
+    lastPageFetched: number;
+  }>[] = [];
+
+  if (mediaTypeFilter === 'all' || mediaTypeFilter === 'movie') {
+    tasks.push(
+      tmdbService
+        .discoverAllMedia('movie', {
+          withGenres: movieGenreIds,
+          minVoteAverage: filters.minRating || undefined,
+          language: filters.language || undefined,
+          sortBy: filters.sortBy || 'popularity.desc',
+          exactYear: yearOpts.exactYear,
+          yearGte: yearOpts.yearGte,
+          yearLte: yearOpts.yearLte,
+          maxPages: pageCount,
+          startPage: startMoviePage + 1,
+        })
+        .then((res) => ({ type: 'movie' as const, ...res }))
+        .catch(() => ({ type: 'movie' as const, results: [], totalPages: 0, lastPageFetched: startMoviePage }))
+    );
+  }
+
+  if (mediaTypeFilter === 'all' || mediaTypeFilter === 'tv') {
+    tasks.push(
+      tmdbService
+        .discoverAllMedia('tv', {
+          withGenres: tvGenreIds,
+          minVoteAverage: filters.minRating || undefined,
+          language: filters.language || undefined,
+          sortBy: filters.sortBy || 'popularity.desc',
+          exactYear: yearOpts.exactYear,
+          yearGte: yearOpts.yearGte,
+          yearLte: yearOpts.yearLte,
+          maxPages: pageCount,
+          startPage: startTvPage + 1,
+        })
+        .then((res) => ({ type: 'tv' as const, ...res }))
+        .catch(() => ({ type: 'tv' as const, results: [], totalPages: 0, lastPageFetched: startTvPage }))
+    );
+  }
+
+  const responses = await Promise.all(tasks);
+  const movieRes = responses.find((r) => r.type === 'movie');
+  const tvRes = responses.find((r) => r.type === 'tv');
+
+  const newLastMoviePage = movieRes ? movieRes.lastPageFetched : startMoviePage;
+  const newLastTvPage = tvRes ? tvRes.lastPageFetched : startTvPage;
+
+  const hasMoreMovies = movieRes ? movieRes.lastPageFetched < movieRes.totalPages : true;
+  const hasMoreTv = tvRes ? tvRes.lastPageFetched < tvRes.totalPages : true;
+
+  const hasMore =
+    mediaTypeFilter === 'movie'
+      ? hasMoreMovies
+      : mediaTypeFilter === 'tv'
+      ? hasMoreTv
+      : hasMoreMovies || hasMoreTv;
+
+  const combined = responses.flatMap((r) => r.results);
+
+  return {
+    items: combined,
+    lastFetchedMoviePage: newLastMoviePage,
+    lastFetchedTvPage: newLastTvPage,
+    hasMorePages: hasMore,
   };
 }
